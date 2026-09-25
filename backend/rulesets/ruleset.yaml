@@ -1,0 +1,92 @@
+# PUNARNAVA scheduling ruleset
+#
+# Read this like a clinician, not like code: each block is one rule, one
+# trigger, one published interval, one citation.
+#
+# !!! VERIFY !!!
+# Every "due" offset and every "citation" below is a DRAFT written for the
+# v0 prototype. None of these has been confirmed against the published
+# FOGSI / ICMR / WHO / MOHFW source yet. Per the PRD, the clinical review
+# gate before 8 Nov must sign off each rule before it is used on a real
+# mother. Do not treat these values as correct.
+#
+# Format rules (also enforced by scripts/compliance_audit.py):
+#   - "due" is always delivery_date +/- a literal offset. No expressions
+#     that reference anything else about the woman.
+#   - No field here may be named priority, severity, score, tier, or rank.
+
+version: "0.1.0-draft"
+
+rules:
+  - id: PP-ALL-01
+    when:
+      clinical_event: always
+    generates: postnatal_visit
+    due: "delivery_date + 1 weeks"
+    window: ["-3 days", "+7 days"]
+    citation: "VERIFY — WHO/MOHFW postnatal visit schedule (draft placeholder)"
+    entitlement: null
+
+  - id: PP-ALL-02
+    when:
+      clinical_event: always
+    generates: six_week_review
+    due: "delivery_date + 6 weeks"
+    window: ["-1 weeks", "+2 weeks"]
+    citation: "VERIFY — FOGSI six-week postnatal check guidance (draft placeholder)"
+    entitlement: null
+
+  - id: PP-GDM-01
+    when:
+      clinical_event: gestational_diabetes
+    generates: postpartum_glucose_test
+    due: "delivery_date + 6 weeks"
+    window: ["-1 weeks", "+3 weeks"]
+    citation: "VERIFY — FOGSI GDM guidance, postpartum follow-up (draft placeholder)"
+    entitlement: "JSSK"
+
+  - id: PP-HTN-01
+    when:
+      clinical_event: hypertensive_in_pregnancy
+    generates: blood_pressure_review
+    due: "delivery_date + 6 weeks"
+    window: ["-1 weeks", "+2 weeks"]
+    citation: "VERIFY — ICMR hypertensive-pregnancy follow-up guidance (draft placeholder)"
+    entitlement: null
+
+  - id: PP-ANEMIA-01
+    when:
+      clinical_event: significant_blood_loss
+    generates: haemoglobin_recheck
+    due: "delivery_date + 6 weeks"
+    window: ["-3 days", "+2 weeks"]
+    citation: "VERIFY — ICMR anaemia postpartum recheck guidance (draft placeholder)"
+    entitlement: "JSSK"
+
+  # Long-horizon milestones (J6) — at least three required by FR-C4.
+  - id: LH-CERVICAL-01
+    when:
+      clinical_event: always
+    generates: cervical_screening_enrolment
+    due: "delivery_date + 26 weeks"
+    window: ["-2 weeks", "+8 weeks"]
+    citation: "VERIFY — national cervical screening enrolment guidance (draft placeholder)"
+    entitlement: null
+
+  - id: LH-CONTRACEPTION-01
+    when:
+      clinical_event: always
+    generates: contraception_counselling
+    due: "delivery_date + 6 weeks"
+    window: ["-1 weeks", "+4 weeks"]
+    citation: "VERIFY — FOGSI postpartum contraception counselling guidance (draft placeholder)"
+    entitlement: null
+
+  - id: LH-ANNUAL-01
+    when:
+      clinical_event: always
+    generates: annual_wellness_check
+    due: "delivery_date + 52 weeks"
+    window: ["-4 weeks", "+8 weeks"]
+    citation: "VERIFY — general adult women's wellness check interval (draft placeholder)"
+    entitlement: null

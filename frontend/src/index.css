@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* NFR-13: min 48dp touch target, high contrast default, no colour-only signalling */
+:root {
+  --min-touch: 48px;
+}
+button, a.btn {
+  min-height: var(--min-touch);
+}
+
+/* FR-F2: printable handoff summary. Strips app chrome, keeps just the card. */
+@media print {
+  body * { visibility: hidden; }
+  .print\:bg-white, .print\:bg-white * { visibility: visible; }
+  .print\:bg-white { position: absolute; left: 0; top: 0; width: 100%; }
+}

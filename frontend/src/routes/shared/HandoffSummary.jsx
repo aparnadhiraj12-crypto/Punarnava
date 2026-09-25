@@ -1,0 +1,160 @@
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { getWoman } from "../../lib/api";
+
+/**
+ * FR-F1/F2 — "a structured one-page view of what happened during her
+ * pregnancy and delivery, before she sits down." Exportable as image/PDF,
+ * shareable without the recipient having an account — this route (/s/:id
+ * and /c/handoff/:id both point here) is deliberately unauthenticated for
+ * v0, matching that requirement. Printable via the browser's own print
+ * dialog (Ctrl/Cmd+P -> Save as PDF), which covers FR-F2 without needing
+ * a PDF-generation dependency for tonight.
+ *
+ * Real v1 version: FR-F3 (mother's language + English), a signed/expiring
+ * share token instead of the raw record id in the URL, and a proper
+ * PDF export rather than browser print.
+ */
+const LABELS = {
+  postnatal_visit: "Postnatal visit",
+  six_week_review: "Six-week review",
+  postpartum_glucose_test: "Glucose test",
+  blood_pressure_review: "Blood pressure review",
+  haemoglobin_recheck: "Haemoglobin recheck",
+  cervical_screening_enrolment: "Cervical screening",
+  contraception_counselling: "Contraception counselling",
+  annual_wellness_check: "Annual wellness check",
+};
+
+const MODE_LABELS = { LSCS: "Caesarean (LSCS)", normal: "Normal delivery", assisted: "Assisted delivery" };
+
+export default function HandoffSummary() {
+  const { id, token } = useParams();
+  const womanId = id || token;
+  const [woman, setWoman] = useState(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    getWoman(womanId)
+      .then(setWoman)
+      .catch(() => setError(true));
+  }, [womanId]);
+
+  if (error) {
+    return (
+      <Page>
+        <p className="text-overdue">Couldn't load this record. The link may be wrong, or the backend isn't running.</p>
+        <Link to="/" className="text-plum-500 underline text-sm">Back to start</Link>
+      </Page>
+    );
+  }
+  if (!woman) return <Page><p className="text-clay-700">Loading…</p></Page>;
+
+  const done = woman.milestones.filter((m) => m.state === "done");
+  const outstanding = woman.milestones.filter((m) => m.state !== "done");
+
+  return (
+    <Page>
+      <div className="flex justify-between items-start mb-6 print:mb-4">
+        <div>
+          <h1 className="text-xl font-semibold text-plum-700">{woman.name}</h1>
+          <p className="text-sm text-clay-700">
+            Postpartum day {woman.postpartum_day} · delivered {woman.delivery_date}
+          </p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          className="print:hidden px-3 py-1.5 text-sm rounded-lg bg-plum-500 text-white"
+        >
+          Print / Save as PDF
+        </button>
+      </div>
+
+      <Section title="Pregnancy & delivery course">
+        <Row label="Mode of delivery" value={MODE_LABELS[woman.mode_of_delivery] || "Not recorded"} />
+        <Row label="Discharge Hb" value={woman.discharge_hb ? `${woman.discharge_hb} g/dL` : "Not recorded"} />
+      </Section>
+
+      <Section title="Complications recorded">
+        {woman.clinical_events.length === 0 ? (
+          <p className="text-sm text-clay-500">None recorded.</p>
+        ) : (
+          <ul className="text-sm text-clay-700 list-disc list-inside">
+            {woman.clinical_events.map((e, i) => (
+              <li key={i}>{e.type.replaceAll("_", " ")}</li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title={`Outstanding (${outstanding.length})`}>
+        {outstanding.length === 0 ? (
+          <p className="text-sm text-done">Nothing outstanding.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <tbody>
+              {outstanding.map((m) => (
+                <tr key={m.rule_id} className="border-t border-clay-100">
+                  <td className="py-1.5 text-plum-700">{LABELS[m.type] || m.type}</td>
+                  <td className="py-1.5 text-clay-700">Due {m.due_date}</td>
+                  <td className={`py-1.5 text-right ${m.days_overdue > 0 ? "text-overdue" : "text-clay-500"}`}>
+                    {m.days_overdue > 0 ? `${m.days_overdue}d overdue` : "not yet due"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Section>
+
+      <Section title={`Completed (${done.length})`}>
+        {done.length === 0 ? (
+          <p className="text-sm text-clay-500">None yet.</p>
+        ) : (
+          <ul className="text-sm text-clay-700">
+            {done.map((m) => (
+              <li key={m.rule_id} className="flex justify-between border-t border-clay-100 py-1.5">
+                <span>{LABELS[m.type] || m.type}</span>
+                <span className="text-done">done</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <p className="text-[11px] text-clay-500 mt-6 print:mt-4">
+        Generated by PUNARNAVA. Every item above traces to a published guideline citation —
+        available on request. This is administrative scheduling information, not a clinical
+        assessment.
+      </p>
+    </Page>
+  );
+}
+
+function Page({ children }) {
+  return (
+    <div className="min-h-screen bg-clay-50 print:bg-white py-8 px-4">
+      <div className="max-w-xl mx-auto bg-white rounded-xl shadow-sm print:shadow-none p-6">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="mb-5 print:mb-3 print:break-inside-avoid">
+      <h2 className="text-xs uppercase tracking-wide text-clay-500 mb-2">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex justify-between text-sm py-1">
+      <span className="text-clay-700">{label}</span>
+      <span className="text-plum-700 font-medium">{value}</span>
+    </div>
+  );
+}
