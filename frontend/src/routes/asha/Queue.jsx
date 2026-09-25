@@ -1,141 +1,121 @@
+// routes/asha/Queue.jsx
 import { useEffect, useState } from "react";
-import { getWomen, recordVisit } from "../../lib/api";
-import { getQueue, flushQueue } from "../../store/offlineStore";
+import { getWomen } from "../../lib/api";
+import PixelIcon from "../../components/PixelIcon";
+import PixelAvatar from "../../components/PixelAvatar";
+import PixelScene from "../../components/PixelScene";
+import StatusStamp from "../../components/StatusStamp";
 
-/**
- * J3 — "She can answer 'who do I need to see today' in under ten seconds,
- * which is currently impossible." FR-E1: sorted by duration overdue, NEVER
- * by clinical severity. That sort key is the only one this screen is
- * allowed to have — see scripts/compliance_audit.py.
- *
- * Wired to the real record service: GET /record/women returns each
- * seeded/enrolled woman with milestones already sorted server-side by
- * max_days_overdue (see backend/record/router.py). No client-side fixture
- * data — what you see here is whatever the backend actually computed.
- */
-const LABELS = {
-  postnatal_visit: "Postnatal visit",
-  six_week_review: "Six-week review",
-  postpartum_glucose_test: "Glucose test",
-  blood_pressure_review: "Blood pressure review",
-  haemoglobin_recheck: "Haemoglobin recheck",
-  cervical_screening_enrolment: "Cervical screening",
-  contraception_counselling: "Contraception counselling",
-  annual_wellness_check: "Annual wellness check",
-};
-
-export default function AshaQueue() {
-  const [mothers, setMothers] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [online, setOnline] = useState(navigator.onLine);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  const load = () => {
-    getWomen()
-      .then((women) => setMothers(women.filter((w) => w.max_days_overdue >= 0)))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    load();
-    setPendingCount(getQueue().filter((q) => !q.synced).length);
-
-    const goOnline = () => {
-      setOnline(true);
-      flushQueue(async (item) => recordVisit(item.woman_id, item.outcome, item.reason)).then(
-        (remaining) => setPendingCount(remaining)
-      );
-      load();
-    };
-    const goOffline = () => setOnline(false);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
-
-  const recordTwoTap = (mother, outcome) => {
-    // FR-E3: two taps to record a visit — this handler IS the second tap.
-    recordVisit(mother.id, outcome);
-    setMothers((prev) => prev.filter((m) => m.id !== mother.id));
-    setPendingCount((p) => p + (online ? 0 : 1));
-  };
-
-  const outstandingLabels = (woman) =>
-    woman.milestones
-      .filter((m) => m.state !== "done" && m.days_overdue >= 0)
-      .map((m) => LABELS[m.type] || m.type)
-      .join(", ") || "Nothing due yet";
-
+function Nav() {
   return (
-    <div className="min-h-screen bg-clay-50" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-      <header className="px-5 pt-6 pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-plum-700">Today's queue</h1>
-          <p className="text-sm text-clay-700">Sorted by days overdue, most overdue first.</p>
-        </div>
-        <StatusBadge online={online} pendingCount={pendingCount} />
-      </header>
-
-      {loading && <p className="px-5 text-clay-700">Loading…</p>}
-      {error && (
-        <p className="px-5 text-overdue text-sm">
-          Couldn't reach the backend. Run <code>uvicorn main:app --reload</code> in{" "}
-          <code>backend/</code> first.
-        </p>
-      )}
-
-      <ul className="px-5 space-y-3">
-        {mothers.map((m) => (
-          <li key={m.id} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-overdue">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-medium text-plum-700">{m.name}</p>
-                <p className="text-xs text-clay-700">Postpartum day {m.postpartum_day}</p>
-                <p className="text-sm text-overdue font-medium mt-1">
-                  {m.max_days_overdue > 0 ? `${m.max_days_overdue} days overdue` : "Due today"}
-                </p>
-                <p className="text-xs text-clay-500 mt-1">{outstandingLabels(m)}</p>
-              </div>
-              <a href={`/s/${m.id}`} className="text-xs text-plum-500 underline shrink-0 ml-2">
-                Handoff
-              </a>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => recordTwoTap(m, "done")}
-                className="flex-1 py-2.5 rounded-lg bg-done text-white text-sm font-medium"
-              >
-                Visited — done
-              </button>
-              <button
-                onClick={() => recordTwoTap(m, "not_done")}
-                className="flex-1 py-2.5 rounded-lg bg-clay-100 text-clay-700 text-sm font-medium"
-              >
-                Not done
-              </button>
-            </div>
-          </li>
-        ))}
-        {!loading && !error && mothers.length === 0 && (
-          <p className="text-center text-clay-500 py-10">Queue clear. Nobody overdue right now.</p>
-        )}
-      </ul>
-    </div>
+    <nav className="bg-forest text-cream flex items-center justify-between px-6 py-3">
+      <div className="flex items-center gap-2 font-display font-semibold">
+        <PixelIcon name="home" size={20} />
+        PUNARNAVA
+      </div>
+      <div className="flex items-center gap-6 text-sm">
+        <a href="/m">Mother</a>
+        <a href="/a" className="underline underline-offset-4">ASHA Queue</a>
+        <a href="/c/handoff">Clinic / Handoff</a>
+      </div>
+    </nav>
   );
 }
 
-function StatusBadge({ online, pendingCount }) {
-  if (online && pendingCount === 0) {
-    return <span className="text-xs px-2 py-1 rounded-full bg-done/10 text-done">Synced</span>;
-  }
+export default function Queue() {
+  const [women, setWomen] = useState([]);
+  const [sort, setSort] = useState("overdue");
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    getWomen()
+      .then(setWomen)
+      .catch(() => setError(true));
+  }, []);
+
+  const sorted = [...women].sort((a, b) => (b.days_overdue ?? 0) - (a.days_overdue ?? 0));
+  const needAttention = sorted.filter((w) => (w.days_overdue ?? 0) > 0).length;
+
   return (
-    <span className="text-xs px-2 py-1 rounded-full bg-due/10 text-due">
-      {online ? `Syncing ${pendingCount}…` : `Offline · ${pendingCount} queued`}
-    </span>
+    <main className="bg-paper min-h-screen">
+      <Nav />
+
+      <div className="relative h-48">
+        <PixelScene className="absolute inset-0" />
+        <div className="relative pixel-card bg-cream/95 max-w-sm mx-6 mt-8">
+          <h1 className="text-2xl mb-1">Good morning, Anjali</h1>
+          <p className="text-sm text-earth mb-3">Your maternal care queue</p>
+          <StatusStamp status="overdue">{`${needAttention} mothers need attention`}</StatusStamp>
+        </div>
+      </div>
+
+      <section className="max-w-2xl mx-auto px-6 py-8">
+        <div className="flex items-center gap-2 mb-5 text-sm">
+          <span className="text-earth">Sort by:</span>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="pixel-frame border-2 border-ink/60 bg-cream px-2 py-1"
+            style={{ "--notch": "3px" }}
+          >
+            <option value="overdue">Days overdue</option>
+            <option value="postpartum">Days postpartum</option>
+          </select>
+        </div>
+
+        {error && (
+          <p className="pixel-badge-overdue mb-4">
+            <PixelIcon name="overdue" size={14} /> Couldn't reach the backend
+          </p>
+        )}
+
+        <div className="flex flex-col gap-4">
+          {sorted.map((w) => {
+            const status = w.days_overdue > 0 ? "overdue" : w.due_soon ? "due" : "upcoming";
+            const cardClass =
+              status === "overdue" ? "pixel-card-overdue" : status === "due" ? "pixel-card-due" : "pixel-card";
+            return (
+              <div key={w.id} className={`${cardClass} flex items-start gap-4`}>
+                <PixelAvatar name={w.name} />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-display font-semibold">{w.name}</p>
+                    <StatusStamp status={status}>
+                      {status === "overdue"
+                        ? `Overdue · ${w.days_overdue} ${w.days_overdue === 1 ? "day" : "days"}`
+                        : status === "due"
+                        ? "Due soon"
+                        : "Upcoming"}
+                    </StatusStamp>
+                  </div>
+                  <p className="text-sm text-earth mb-1">{w.days_postpartum} days postpartum</p>
+                  {w.next_milestone && (
+                    <p className="text-sm mb-1">Next: {w.next_milestone}</p>
+                  )}
+                  {w.risk_flags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {w.risk_flags.map((flag) => (
+                        <StatusStamp key={flag} status="risk">{flag}</StatusStamp>
+                      ))}
+                    </div>
+                  )}
+                  <a href={`/m/${w.id}`} className="pixel-btn-secondary text-sm">
+                    View timeline
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+
+          {!error && sorted.length === 0 && (
+            <div className="pixel-card text-center py-10">
+              <PixelIcon name="mother" size={40} className="mx-auto mb-3 text-sage" />
+              <p className="font-medium mb-1">No mothers found</p>
+              <p className="text-sm text-earth">Try adjusting your filters or check back later.</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
   );
 }

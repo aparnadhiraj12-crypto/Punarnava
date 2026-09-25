@@ -49,3 +49,23 @@ export function recordVisit(womanId, outcome, reason, ruleId) {
     return { queued: true };
   });
 }
+
+/** New-mother enrolment — queues locally if offline, syncs later (NFR-15/16),
+ * same pattern as recordVisit. Backend: POST /api/ingestion/manual. */
+export function enrolMother(payload) {
+  const action = { type: "enrol_mother", ...payload };
+  queueWrite(action);
+  return fetch(`${BASE}/ingestion/manual`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+    .then((r) => {
+      if (!r.ok) throw new Error(r.statusText);
+      return r.json();
+    })
+    .catch(() => {
+      // queued already — offline is a success path, not an error
+      return { queued: true };
+    });
+}

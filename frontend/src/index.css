@@ -1,18 +1,87 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* NFR-13: min 48dp touch target, high contrast default, no colour-only signalling */
-:root {
-  --min-touch: 48px;
-}
-button, a.btn {
-  min-height: var(--min-touch);
+@layer base {
+  html { font-family: "Karla", ui-sans-serif, system-ui, sans-serif; }
+  body { @apply bg-paper text-ink; }
+  h1, h2, h3 { @apply font-display; font-weight: 500; }
+
+  /* any illustration/icon PNGs must stay crisp when scaled, never blurred */
+  img.pixel-art, svg.pixel-art {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  :focus-visible {
+    outline: 3px solid theme("colors.clay");
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
 }
 
-/* FR-F2: printable handoff summary. Strips app chrome, keeps just the card. */
-@media print {
-  body * { visibility: hidden; }
-  .print\:bg-white, .print\:bg-white * { visibility: visible; }
-  .print\:bg-white { position: absolute; left: 0; top: 0; width: 100%; }
+@layer components {
+  /* Notched "8-bit window" corners — the signature frame shape for every
+     card, button and badge. Swap --notch to resize the notch. */
+  .pixel-frame {
+    --notch: 6px;
+    clip-path: polygon(
+      0 var(--notch), var(--notch) var(--notch), var(--notch) 0,
+      calc(100% - var(--notch)) 0, calc(100% - var(--notch)) var(--notch), 100% var(--notch),
+      100% calc(100% - var(--notch)), calc(100% - var(--notch)) calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+      var(--notch) 100%, var(--notch) calc(100% - var(--notch)), 0 calc(100% - var(--notch))
+    );
+    border-radius: 0;
+  }
+
+  .pixel-card {
+    @apply pixel-frame bg-cream border-2 border-ink/80 p-4;
+    --notch: 6px;
+  }
+  .pixel-card-overdue   { @apply pixel-card border-clay bg-terracotta/15; }
+  .pixel-card-due       { @apply pixel-card border-turmeric bg-turmeric/15; }
+  .pixel-card-completed { @apply pixel-card border-leaf bg-sage/25; }
+
+  .pixel-btn {
+    @apply pixel-frame inline-flex items-center justify-center gap-2
+           font-display font-medium px-5 py-2.5 border-2 border-ink
+           shadow-pixel active:translate-x-[2px] active:translate-y-[2px]
+           active:shadow-none transition-transform;
+    --notch: 5px;
+  }
+  .pixel-btn-primary   { @apply pixel-btn bg-forest text-cream; }
+  .pixel-btn-secondary { @apply pixel-btn bg-cream text-ink; }
+  .pixel-btn-ghost     { @apply pixel-btn bg-transparent border-ink/40 text-ink; }
+  .pixel-btn:disabled  { @apply opacity-40 pointer-events-none shadow-none; }
+
+  /* Status badge — icon + label together, never color alone (NFR-13) */
+  .pixel-badge {
+    @apply pixel-frame inline-flex items-center gap-1.5 border-2 border-ink
+           px-2.5 py-1 text-sm font-medium;
+    --notch: 4px;
+  }
+  .pixel-badge-completed { @apply pixel-badge bg-sage text-forest; }
+  .pixel-badge-due       { @apply pixel-badge bg-turmeric text-ink; }
+  .pixel-badge-overdue   { @apply pixel-badge bg-clay text-cream; }
+  .pixel-badge-upcoming  { @apply pixel-badge bg-sky text-ink; }
+  .pixel-badge-risk      { @apply pixel-badge bg-terracotta text-cream; }
+
+  /* Subtle repeating-dot dither, for hero panels behind pixel illustrations —
+     code-only stand-in until real pixel-art scenes are dropped in (see guide) */
+  .pixel-dither {
+    background-image: radial-gradient(rgba(38,53,46,0.06) 1px, transparent 1px);
+    background-size: 4px 4px;
+  }
+
+  /* Vine/timeline connector — leaf-green stepped line instead of a plain rule */
+  .pixel-vine {
+    width: 4px;
+    background: repeating-linear-gradient(
+      to bottom, theme("colors.leaf") 0 8px, theme("colors.sage") 8px 16px
+    );
+  }
 }
