@@ -2,17 +2,6 @@ import { useEffect, useState } from "react";
 import { getWomen, recordVisit } from "../../lib/api";
 import { getQueue, flushQueue } from "../../store/offlineStore";
 
-/**
- * J3 — "She can answer 'who do I need to see today' in under ten seconds,
- * which is currently impossible." FR-E1: sorted by duration overdue, NEVER
- * by clinical severity. That sort key is the only one this screen is
- * allowed to have — see scripts/compliance_audit.py.
- *
- * Wired to the real record service: GET /record/women returns each
- * seeded/enrolled woman with milestones already sorted server-side by
- * max_days_overdue (see backend/record/router.py). No client-side fixture
- * data — what you see here is whatever the backend actually computed.
- */
 const LABELS = {
   postnatal_visit: "Postnatal visit",
   six_week_review: "Six-week review",
@@ -30,6 +19,19 @@ export default function AshaQueue() {
   const [online, setOnline] = useState(navigator.onLine);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const women = await getWomen();
+      setMothers(women);
+    } catch (e) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -52,7 +54,6 @@ export default function AshaQueue() {
   }, []);
 
   const recordTwoTap = (mother, outcome) => {
-    // FR-E3: two taps to record a visit — this handler IS the second tap.
     recordVisit(mother.id, outcome);
     setMothers((prev) => prev.filter((m) => m.id !== mother.id));
     setPendingCount((p) => p + (online ? 0 : 1));
@@ -94,18 +95,14 @@ export default function AshaQueue() {
                 </p>
                 <p className="text-xs text-clay-500 mt-1">{outstandingLabels(m)}</p>
               </div>
-            );
-          })}
-
-          {!error && sorted.length === 0 && (
-            <div className="pixel-card text-center py-10">
-              <PixelIcon name="mother" size={40} className="mx-auto mb-3 text-sage" />
-              <p className="font-medium mb-1">No mothers found</p>
-              <p className="text-sm text-earth">Try adjusting your filters or check back later.</p>
             </div>
-          )}
-        </div>
-      </section>
-    </main>
+          </li>
+        ))}
+      </ul>
+
+      {!loading && !error && mothers.length === 0 && (
+        <p className="px-5 text-clay-700 text-center py-10">No mothers in the queue right now.</p>
+      )}
+    </div>
   );
 }
