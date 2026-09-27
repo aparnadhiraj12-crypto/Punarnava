@@ -1,5 +1,5 @@
-"""
-Scheduler engine — THE compliance-critical component (PRD, TRD C2).
+﻿"""
+Scheduler engine -- THE compliance-critical component (PRD, TRD C2).
 
 Hard rules, enforced here by construction, not by prompting:
   - No model import. No network call. No learned component of any kind.
@@ -58,7 +58,7 @@ class Ruleset:
 
 def _resolve_offset(delivery_date: date, expr: str) -> date:
     """Parses literal offsets like 'delivery_date + 6 weeks'. No arithmetic
-    on patient characteristics — the offset itself is a fixed published
+    on patient characteristics -- the offset itself is a fixed published
     value from the ruleset, this function only does the date math."""
     parts = expr.replace("delivery_date", "").strip().split()
     sign, n, unit = parts[0], int(parts[1]), parts[2]
@@ -66,15 +66,30 @@ def _resolve_offset(delivery_date: date, expr: str) -> date:
     return delivery_date + (timedelta(days=days) if sign == "+" else -timedelta(days=days))
 
 
+def _resolve_state(today: date, window_opens: date, window_closes: date) -> str:
+    """FR-C3: due | pending | missed, computed purely from dates. "done" is
+    never set here -- it's an override applied later at the record layer
+    (record/router.py._with_milestones), since this function has no idea
+    whether an ASHA has recorded a completed visit."""
+    if today < window_opens:
+        return "pending"
+    if today > window_closes:
+        return "missed"
+    return "due"
+
+
 def generate_milestones(
     delivery_date: date,
     clinical_events: list[str],
     ruleset: Ruleset | None = None,
+    today: date | None = None,
 ) -> list[Milestone]:
     """Pure function: record facts in, milestone list out. No I/O beyond
     the ruleset file load (done once by the caller/router, not per call,
-    to keep this testable without disk access)."""
+    to keep this testable without disk access). `today` defaults to the
+    real today but is an explicit parameter so golden tests can pin it."""
     ruleset = ruleset or Ruleset.load()
+    today = today or date.today()
     milestones: list[Milestone] = []
 
     for rule in ruleset.rules:
@@ -90,7 +105,7 @@ def generate_milestones(
                     due_date=due,
                     window_opens=window_opens,
                     window_closes=window_closes,
-                    state="due",
+                    state=_resolve_state(today, window_opens, window_closes),
                     rule_id=rule["id"],
                     ruleset_version=ruleset.version,
                     citation=rule["citation"],
