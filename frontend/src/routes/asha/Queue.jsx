@@ -1,103 +1,98 @@
-﻿// routes/asha/Queue.jsx
-// FR-E1: sorted by days overdue ONLY. No other sort control belongs here --
-// see docs/compliance.md rule 1. (An earlier draft had a "sort by days
-// postpartum" option; removed, since a second sort key is exactly what the
-// compliance audit exists to catch.)
 import { useEffect, useState } from "react";
-import { getWomen } from "../../lib/api";
-import PixelIcon from "../../components/PixelIcon";
-import PixelAvatar from "../../components/PixelAvatar";
-import PixelScene from "../../components/PixelScene";
-import StatusStamp from "../../components/StatusStamp";
-import { milestoneLabel, eventLabel, sortByOverdue } from "../../lib/labels";
+import { getWomen, recordVisit } from "../../lib/api";
+import { getQueue, flushQueue } from "../../store/offlineStore";
 
-function Nav() {
-  return (
-    <nav className="bg-forest text-cream flex items-center justify-between px-6 py-3">
-      <div className="flex items-center gap-2 font-display font-semibold">
-        <PixelIcon name="home" size={20} />
-        PUNARNAVA
-      </div>
-      <div className="flex items-center gap-6 text-sm">
-        <a href="/m">Mother</a>
-        <a href="/a" className="underline underline-offset-4">ASHA Queue</a>
-        <a href="/c/handoff/demo-lakshmi">Clinic / Handoff</a>
-      </div>
-    </nav>
-  );
-}
+/**
+ * J3 — "She can answer 'who do I need to see today' in under ten seconds,
+ * which is currently impossible." FR-E1: sorted by duration overdue, NEVER
+ * by clinical severity. That sort key is the only one this screen is
+ * allowed to have — see scripts/compliance_audit.py.
+ *
+ * Wired to the real record service: GET /record/women returns each
+ * seeded/enrolled woman with milestones already sorted server-side by
+ * max_days_overdue (see backend/record/router.py). No client-side fixture
+ * data — what you see here is whatever the backend actually computed.
+ */
+const LABELS = {
+  postnatal_visit: "Postnatal visit",
+  six_week_review: "Six-week review",
+  postpartum_glucose_test: "Glucose test",
+  blood_pressure_review: "Blood pressure review",
+  haemoglobin_recheck: "Haemoglobin recheck",
+  cervical_screening_enrolment: "Cervical screening",
+  contraception_counselling: "Contraception counselling",
+  annual_wellness_check: "Annual wellness check",
+};
 
-export default function Queue() {
-  const [women, setWomen] = useState([]);
+export default function AshaQueue() {
+  const [mothers, setMothers] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    getWomen().then(setWomen).catch(() => setError(true));
+    load();
+    setPendingCount(getQueue().filter((q) => !q.synced).length);
+
+    const goOnline = () => {
+      setOnline(true);
+      flushQueue(async (item) => recordVisit(item.woman_id, item.outcome, item.reason)).then(
+        (remaining) => setPendingCount(remaining)
+      );
+      load();
+    };
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   }, []);
 
-  const sorted = [...women].sort((a, b) =>
-    sortByOverdue({ days_overdue: a.max_days_overdue }, { days_overdue: b.max_days_overdue })
-  );
-  const needAttention = sorted.filter((w) => (w.max_days_overdue ?? -1) > 0).length;
+  const recordTwoTap = (mother, outcome) => {
+    // FR-E3: two taps to record a visit — this handler IS the second tap.
+    recordVisit(mother.id, outcome);
+    setMothers((prev) => prev.filter((m) => m.id !== mother.id));
+    setPendingCount((p) => p + (online ? 0 : 1));
+  };
+
+  const outstandingLabels = (woman) =>
+    woman.milestones
+      .filter((m) => m.state !== "done" && m.days_overdue >= 0)
+      .map((m) => LABELS[m.type] || m.type)
+      .join(", ") || "Nothing due yet";
 
   return (
-    <main className="bg-paper min-h-screen">
-      <Nav />
-
-      <div className="relative h-48">
-        <PixelScene className="absolute inset-0" />
-        <div className="relative pixel-card bg-cream/95 max-w-sm mx-6 mt-8">
-          <h1 className="text-2xl mb-1">Good morning, Anjali</h1>
-          <p className="text-sm text-earth mb-3">Your maternal care queue</p>
-          <StatusStamp status="overdue">{`${needAttention} mothers need attention`}</StatusStamp>
+    <div className="min-h-screen bg-clay-50" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <header className="px-5 pt-6 pb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-plum-700">Today's queue</h1>
+          <p className="text-sm text-clay-700">Sorted by days overdue, most overdue first.</p>
         </div>
-      </div>
+        <StatusBadge online={online} pendingCount={pendingCount} />
+      </header>
 
-      <section className="max-w-2xl mx-auto px-6 py-8">
-        <p className="text-sm text-earth mb-5">Sorted by days overdue -- the only order this list ever uses.</p>
+      {loading && <p className="px-5 text-clay-700">Loading…</p>}
+      {error && (
+        <p className="px-5 text-overdue text-sm">
+          Couldn't reach the backend. Run <code>uvicorn main:app --reload</code> in{" "}
+          <code>backend/</code> first.
+        </p>
+      )}
 
-        {error && (
-          <p className="pixel-badge-overdue mb-4">
-            <PixelIcon name="overdue" size={14} /> Couldn't reach the backend
-          </p>
-        )}
-
-        <div className="flex flex-col gap-4">
-          {sorted.map((w) => {
-            const overdue = w.max_days_overdue ?? -1;
-            const status = overdue > 0 ? "overdue" : overdue === 0 ? "due" : "upcoming";
-            const cardClass =
-              status === "overdue" ? "pixel-card-overdue" : status === "due" ? "pixel-card-due" : "pixel-card";
-            const topMilestone = w.milestones?.[0];
-            return (
-              <div key={w.id} className={`${cardClass} flex items-start gap-4`}>
-                <PixelAvatar name={w.name} />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="font-display font-semibold">{w.name}</p>
-                    <StatusStamp status={status}>
-                      {status === "overdue"
-                        ? `Overdue - ${overdue} ${overdue === 1 ? "day" : "days"}`
-                        : status === "due"
-                        ? "Due now"
-                        : "Upcoming"}
-                    </StatusStamp>
-                  </div>
-                  <p className="text-sm text-earth mb-1">{w.postpartum_day} days postpartum</p>
-                  {topMilestone && (
-                    <p className="text-sm mb-1">Next: {milestoneLabel(topMilestone.type)}</p>
-                  )}
-                  {w.clinical_events?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {w.clinical_events.map((e) => (
-                        <StatusStamp key={e.type} status="risk">{eventLabel(e.type)}</StatusStamp>
-                      ))}
-                    </div>
-                  )}
-                  <a href={`/m/${w.id}`} className="pixel-btn-secondary text-sm">
-                    View timeline
-                  </a>
-                </div>
+      <ul className="px-5 space-y-3">
+        {mothers.map((m) => (
+          <li key={m.id} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-overdue">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-medium text-plum-700">{m.name}</p>
+                <p className="text-xs text-clay-700">Postpartum day {m.postpartum_day}</p>
+                <p className="text-sm text-overdue font-medium mt-1">
+                  {m.max_days_overdue > 0 ? `${m.max_days_overdue} days overdue` : "Due today"}
+                </p>
+                <p className="text-xs text-clay-500 mt-1">{outstandingLabels(m)}</p>
               </div>
             );
           })}
