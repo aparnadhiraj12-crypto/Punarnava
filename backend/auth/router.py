@@ -6,18 +6,23 @@ signup/login was needed before submission. Keep that context if a judge or
 teammate asks why this wasn't in the original architecture diagram.
 
 Owns: signup, login, and role-based tokens for three roles: mother, asha,
-clinic. A token maps to exactly one linked_id -- a woman_id, asha_id, or
-clinic_id -- which every other module uses to scope what that user can see.
+clinic. A token maps to exactly one linked_id, which other modules use to
+scope what that user can see.
 
-What this deliberately is NOT: production-grade auth. Passwords are hashed
-(salted SHA-256, stdlib only, no new dependency), but there is no OTP, no
-rate limiting, no password reset, and tokens are opaque random strings held
-in memory (not real JWTs, no expiry). This is fine for a demo and wrong for
-real users -- say so plainly if asked, same as CORS allow_origins=["*"].
+Mother signup creates her record: the linked_id of a mother account is the
+id of a real WomanRecord (via record.router.create_woman), so her timeline
+at /api/record/women/{linked_id} works straight after signup. If no
+delivery_date is sent, the record is created with today's date and
+incomplete=True (FR-B6: mark incomplete, never reject) -- the frontend
+should ask for the delivery date at signup so this is the exception.
+ASHA and clinic accounts get a placeholder id, since they have no record.
 
-Still stubbed: token expiry, refresh, per-scope consent grants (FR-G2/G3 --
-those depend on auth existing first, but aren't built yet even though auth
-now is), account recovery.
+What this deliberately is NOT: production-grade auth. Passwords are salted
+and hashed (PBKDF2, stdlib only, no new dependency), but there is no OTP,
+no rate limiting, no password reset, and tokens are opaque random strings
+held in memory (not real JWTs, no expiry). Nothing else in the backend
+checks the token yet. Fine for a demo and wrong for real users -- say so
+plainly if asked, same as CORS allow_origins=["*"].
 
 An ASHA enrolling a mother who has no account of her own (the common real
 case -- see PRD persona Lakshmi, "uses a phone that belongs to her
@@ -28,11 +33,14 @@ not a gate in front of the existing enrolment flow.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from datetime import date
 import hashlib
 import hmac
 import os
 import secrets
 import uuid
+
+from record.router import create_woman, WomanRecord
 
 router = APIRouter()
 
@@ -56,6 +64,9 @@ class SignupRequest(BaseModel):
     phone_or_email: str
     password: str
     name: str
+    # only used when role == "mother"; ignored for asha/clinic
+    delivery_date: Optional[date] = None
+    mode_of_delivery: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -80,7 +91,17 @@ def signup(req: SignupRequest):
 
     salt = os.urandom(16)
     user_id = str(uuid.uuid4())
-    linked_id = _make_linked_id(req.role)
+
+    if req.role == "mother":
+        record = create_woman(WomanRecord(
+            name=req.name,
+            delivery_date=req.delivery_date or date.today(),
+            mode_of_delivery=req.mode_of_delivery,
+            incomplete=req.delivery_date is None,
+        ))
+        linked_id = record["id"]
+    else:
+        linked_id = _make_linked_id(req.role)
 
     _USERS[user_id] = {
         "id": user_id,
