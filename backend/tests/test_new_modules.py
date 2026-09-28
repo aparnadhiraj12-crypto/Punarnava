@@ -145,3 +145,30 @@ def test_asha_signup_does_not_create_a_woman_record():
     s = client.post("/api/auth/signup", json={
         "role": "asha", "phone_or_email": "norecord@test.com", "password": "pw1234", "name": "Sunita"})
     assert client.get(f"/api/record/women/{s.json()['linked_id']}").status_code == 404
+
+
+# ---- signup creates a real record for mothers ----
+
+def test_mother_signup_creates_a_real_record():
+    s = client.post("/api/auth/signup", json={
+        "role": "mother", "phone_or_email": "realrec@test.com", "password": "pw1234",
+        "name": "Real Record", "delivery_date": "2026-08-01", "mode_of_delivery": "LSCS"})
+    assert s.status_code == 200
+    r = client.get(f"/api/record/women/{s.json()['linked_id']}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "Real Record" and body["mode_of_delivery"] == "LSCS"
+    assert body["incomplete"] is False and len(body["milestones"]) > 0
+
+
+def test_mother_signup_without_delivery_date_is_flagged_incomplete():
+    s = client.post("/api/auth/signup", json={
+        "role": "mother", "phone_or_email": "nodate@test.com", "password": "pw1234", "name": "No Date"})
+    r = client.get(f"/api/record/women/{s.json()['linked_id']}")
+    assert r.status_code == 200 and r.json()["incomplete"] is True
+
+
+def test_asha_signup_does_not_create_a_woman_record():
+    s = client.post("/api/auth/signup", json={
+        "role": "asha", "phone_or_email": "norecord@test.com", "password": "pw1234", "name": "Sunita"})
+    assert client.get(f"/api/record/women/{s.json()['linked_id']}").status_code == 404
