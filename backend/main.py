@@ -20,6 +20,7 @@ from outreach.router import router as outreach_router
 from auth.router import router as auth_router
 from auth.router import router as auth_router
 from wellness.router import router as wellness_router
+from journal.router import router as journal_router
 
 app = FastAPI(
     title="PUNARNAVA API",
@@ -41,6 +42,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(wellness_router, prefix="/api/wellness", tags=["wellness"])
 app.include_router(outreach_router, prefix="/api/outreach", tags=["outreach"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(journal_router, prefix="/api/journal", tags=["journal"])
 
 
 @app.get("/api/health")
