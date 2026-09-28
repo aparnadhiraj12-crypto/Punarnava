@@ -1,35 +1,29 @@
-﻿// Human labels for the ruleset's milestone `type` and clinical `event` codes.
-// Single source of truth so Timeline/Queue/Handoff never drift from
-// backend/rulesets/ruleset.yaml and record/router.py's ClinicalEvent.type.
-export const MILESTONE_LABELS = {
+// lib/labels.js - the only place display names live. Unknown types fall back to
+// a readable version of the backend id, so a new rule never shows a raw snake_case key.
+const humanize = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
+
+const MILESTONES = {
   postnatal_visit: "Postnatal visit",
-  six_week_review: "Six-week review",
-  postpartum_glucose_test: "Postpartum glucose test",
-  blood_pressure_review: "Blood pressure review",
-  haemoglobin_recheck: "Haemoglobin recheck",
-  cervical_screening_enrolment: "Cervical screening enrolment",
-  contraception_counselling: "Contraception counselling",
-  annual_wellness_check: "Annual wellness check",
 };
-
-export const EVENT_LABELS = {
+const EVENTS = {
   gestational_diabetes: "Gestational diabetes",
-  hypertensive_in_pregnancy: "Hypertension in pregnancy",
+  hypertensive_in_pregnancy: "High blood pressure in pregnancy",
   significant_blood_loss: "Significant blood loss",
+  on_metformin: "On metformin",
 };
 
-export const milestoneLabel = (type) =>
-  MILESTONE_LABELS[type] ?? type.replace(/_/g, " ");
+export const milestoneLabel = (type) => MILESTONES[type] ?? humanize(type);
+export const eventLabel = (type) => EVENTS[type] ?? humanize(type);
 
-export const eventLabel = (type) => EVENT_LABELS[type] ?? type.replace(/_/g, " ");
+// state is exactly: due | done | pending | missed | not_applicable
+const STATES = {
+  due:            { label: "Due",            card: "pixel-card-due",       stamp: "due" },
+  done:           { label: "Completed",      card: "pixel-card-completed", stamp: "completed" },
+  pending:        { label: "Upcoming",       card: "pixel-card",           stamp: "upcoming" },
+  missed:         { label: "Overdue",        card: "pixel-card-overdue",   stamp: "overdue" },
+  not_applicable: { label: "Not applicable", card: "pixel-card",           stamp: null },
+};
 
-export const stateLabel = (state) =>
-  ({ due: "Due", done: "Done", pending: "Upcoming", missed: "Overdue", not_applicable: "Not applicable" }[state] ?? state);
-
-export const stateCardClass = (state) =>
-  state === "missed" ? "pixel-card-overdue" : state === "due" ? "pixel-card-due" : state === "done" ? "pixel-card-completed" : "pixel-card";
-
-export const stateStampStatus = (state) =>
-  state === "missed" ? "overdue" : state === "due" ? "due" : state === "done" ? "completed" : "upcoming";
-
-export const sortByOverdue = (a, b) => (b.days_overdue ?? -1) - (a.days_overdue ?? -1);
+export const stateLabel = (s) => STATES[s]?.label ?? humanize(s);
+export const stateCardClass = (s) => STATES[s]?.card ?? "pixel-card";
+export const stateStampStatus = (s) => STATES[s]?.stamp ?? null;

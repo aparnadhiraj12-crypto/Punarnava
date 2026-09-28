@@ -1,71 +1,66 @@
-import { cache, getCached, queueWrite } from "../store/offlineStore";
+// lib/api.js - every backend call in one place. Field names follow the
+// FRONTEND guide section 2 exactly; do not rename them.
+export const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
 
-const BASE = import.meta.env.VITE_API_BASE || "/api";
-
-async function get(path, cacheKey) {
-  try {
-    const res = await fetch(`${BASE}${path}`);
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    if (cacheKey) cache(cacheKey, data);
-    return data;
-  } catch (err) {
-    // NFR-7: timeline and queue must render from cache with no network.
-    const cached = cacheKey ? getCached(cacheKey) : null;
-    if (cached) return cached;
+async function send(method, path, body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(typeof data.detail === "string" ? data.detail : res.statusText);
+    err.status = res.status;
     throw err;
   }
+  return data;
 }
 
-export function getWomen() {
-  return get("/record/women", "women");
-}
+// ---- records and scheduling ----
+// listWomen is already sorted worst-first by the backend. Never re-sort it.
+export const listWomen = () => send("GET", "/record/women");
+export const getWoman = (id) => send("GET", `/record/women/${encodeURIComponent(id)}`);
+export const getInteractions = (id) => send("GET", `/record/women/${encodeURIComponent(id)}/interactions`);
+export const getReasonCounts = () => send("GET", "/record/interactions/reasons");
 
-export function getWoman(id) {
-  return get(`/record/women/${id}`, `woman:${id}`);
-}
+// Enrol a mother. Payload keys: woman_name, delivery_date, mode_of_delivery,
+// discharge_hb, gestational_diabetes, on_metformin, hypertensive_in_pregnancy,
+// significant_blood_loss, language. Returns { status, woman }.
+export const enrolMother = (payload) => send("POST", "/ingestion/manual", payload);
 
-export function getSchedule(deliveryDate, clinicalEvents) {
-  return fetch(`${BASE}/scheduler/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ delivery_date: deliveryDate, clinical_events: clinicalEvents }),
-  }).then((r) => r.json());
-}
-
-/** Two-tap visit recording (FR-E3) — queues locally if offline, syncs later.
- * ruleId is optional: omit it for the ASHA queue's quick tap (applies to
- * whichever milestone is most overdue for that woman); pass it from the
- * mother's timeline where a specific milestone was tapped. */
+// outcome: done | not_done | could_not_go. reason only for could_not_go.
+// ruleId optional: omitted -> backend updates the most overdue milestone (ASHA two-tap).
 export function recordVisit(womanId, outcome, reason, ruleId) {
-  const action = { type: "record_visit", woman_id: womanId, rule_id: ruleId, outcome, reason };
-  queueWrite(action);
-  return fetch(`${BASE}/outreach/respond`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ woman_id: womanId, rule_id: ruleId ?? null, outcome, reason }),
-  }).catch(() => {
-    // queued already — offline is a success path, not an error (NFR-15/16)
-    return { queued: true };
-  });
+  const body = { woman_id: womanId, outcome };
+  if (reason) body.reason = reason;
+  if (ruleId) body.rule_id = ruleId;
+  return send("POST", "/outreach/respond", body);
 }
 
-/** New-mother enrolment — queues locally if offline, syncs later (NFR-15/16),
- * same pattern as recordVisit. Backend: POST /api/ingestion/manual. */
-export function enrolMother(payload) {
-  const action = { type: "enrol_mother", ...payload };
-  queueWrite(action);
-  return fetch(`${BASE}/ingestion/manual`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
-    .then((r) => {
-      if (!r.ok) throw new Error(r.statusText);
-      return r.json();
-    })
-    .catch(() => {
-      // queued already — offline is a success path, not an error
-      return { queued: true };
-    });
+// ---- auth, wellness, journal, safety ----
+export const signup = (payload) => send("POST", "/auth/signup", payload);
+export const login = (payload) => send("POST", "/auth/login", payload);
+export const getMe = (token) => send("GET", `/auth/me?token=${encodeURIComponent(token)}`);
+
+export function getWellnessContent({ stage, region } = {}) {
+  const q = new URLSearchParams();
+  if (stage) q.set("stage", stage);
+  if (region) q.set("region", region);
+  return send("GET", `/wellness/content?${q}`);
 }
+
+export function getProviders({ type, region, language } = {}) {
+  const q = new URLSearchParams();
+  if (type) q.set("type", type);
+  if (region) q.set("region", region);
+  if (language) q.set("language", language);
+  return send("GET", `/wellness/providers?${q}`);
+}
+
+export const addJournalEntry = (womanId, moodEmoji, note) =>
+  send("POST", "/journal/entry", { woman_id: womanId, mood_emoji: moodEmoji, note: note || null });
+export const getJournal = (womanId) => send("GET", `/journal/${encodeURIComponent(womanId)}`);
+
+// No arguments about symptoms or the woman, on purpose.
+export const getDangerSigns = (language = "en") => send("GET", `/safety/danger-signs?language=${language}`);
