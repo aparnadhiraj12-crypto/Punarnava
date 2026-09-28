@@ -172,3 +172,34 @@ def test_asha_signup_does_not_create_a_woman_record():
     s = client.post("/api/auth/signup", json={
         "role": "asha", "phone_or_email": "norecord@test.com", "password": "pw1234", "name": "Sunita"})
     assert client.get(f"/api/record/women/{s.json()['linked_id']}").status_code == 404
+
+
+# ---- safety: danger-sign guidance ----
+
+def test_danger_signs_are_fixed_content_with_citations():
+    r = client.get("/api/safety/danger-signs")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["guidance"]) > 0
+    for item in body["guidance"]:
+        assert item["text"].strip() and item["source_citation"].strip()
+    assert body["action"]["type"] == "contact_human"
+
+
+def test_danger_signs_ignore_symptoms_and_woman_id():
+    """Compliance (Rule 2): the endpoint must not react to a reported
+    symptom or a woman's record. Output is identical whatever is sent."""
+    plain = client.get("/api/safety/danger-signs").json()
+    with_input = client.get("/api/safety/danger-signs", params={
+        "symptom": "headache", "woman_id": "demo-lakshmi", "clinical_events": "hypertensive_in_pregnancy"}).json()
+    assert plain == with_input
+
+
+def test_danger_signs_unsupported_language_falls_back_and_says_so():
+    body = client.get("/api/safety/danger-signs", params={"language": "te"}).json()
+    assert body["language_served"] == "en" and body["fallback"] is True
+    assert len(body["guidance"]) > 0
+
+
+def test_danger_signs_carry_no_scoring_fields():
+    assert not (set(_keys(client.get("/api/safety/danger-signs").json())) & FORBIDDEN)
