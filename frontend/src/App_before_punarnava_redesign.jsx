@@ -4,10 +4,7 @@ import {
   signup,
   getMe,
   getWoman,
-  getInteractions,
-  listWomen,
   recordVisit,
-  enrolMother,
   getWellnessContent,
   getProviders,
   addJournalEntry,
@@ -639,16 +636,6 @@ function Journey({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(null);
-  const [reasonFor, setReasonFor] = useState(null);
-
-  const reasons = [
-    { id: "no_transport", label: "No transport", icon: "🚌" },
-    { id: "no_money", label: "No money", icon: "₹" },
-    { id: "no_childcare", label: "No childcare", icon: "👶" },
-    { id: "family_did_not_permit", label: "Family did not permit", icon: "🏠" },
-    { id: "facility_closed", label: "Facility closed", icon: "🚪" },
-    { id: "did_not_know", label: "I didn't know", icon: "?" },
-  ];
 
   async function loadJourney() {
     try {
@@ -670,23 +657,16 @@ function Journey({ onNavigate }) {
     loadJourney();
   }, []);
 
-  async function handleVisit(milestone, outcome, reason = undefined) {
+  async function handleVisit(milestone, outcome) {
     if (!woman?.id) return;
-
-    if (outcome === "could_not_go" && !reason) {
-      setReasonFor(milestone.rule_id);
-      return;
-    }
 
     try {
       setSaving(milestone.rule_id);
-      setReasonFor(null);
-      setError("");
 
       await recordVisit(
         woman.id,
         outcome,
-        reason,
+        undefined,
         milestone.rule_id
       );
 
@@ -702,7 +682,7 @@ function Journey({ onNavigate }) {
     return (
       <MotherShell page="journey" onNavigate={onNavigate}>
         <div className="loading-state">
-          <div className="loading-sun">✦</div>
+          <div className="loading-sun">☀</div>
           <h2>Loading your care journey...</h2>
           <p>Just a moment.</p>
         </div>
@@ -717,7 +697,7 @@ function Journey({ onNavigate }) {
           <h2>We couldn't load your journey.</h2>
           <p>{error}</p>
           <button
-            className="soft-button primary"
+            className="pixel-button primary"
             onClick={loadJourney}
           >
             Try again
@@ -736,14 +716,18 @@ function Journey({ onNavigate }) {
 
         <h1>
           {woman?.name
-            ? `${woman.name}'s journey`
-            : "Your care journey"}
+            ? `${woman.name}'s journey.`
+            : "The journey so far."}
         </h1>
 
         <p>
           Day {woman?.postpartum_day ?? "—"} after delivery
-          {woman?.delivery_date ? ` · ${woman.delivery_date}` : ""}
-          {woman?.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}
+          {woman?.delivery_date
+            ? ` · ${woman.delivery_date}`
+            : ""}
+          {woman?.mode_of_delivery
+            ? ` · ${woman.mode_of_delivery}`
+            : ""}
         </p>
       </div>
 
@@ -756,11 +740,8 @@ function Journey({ onNavigate }) {
       {woman?.clinical_events?.length > 0 && (
         <div className="journey-tags">
           {woman.clinical_events.map((event, index) => (
-            <span
-              key={`${event.type}-${index}`}
-              className="soft-tag"
-            >
-              {eventLabel(event.type)}
+            <span key={`${event.type}-${index}`} className="soft-tag">
+              {event.type}
             </span>
           ))}
         </div>
@@ -784,11 +765,11 @@ function Journey({ onNavigate }) {
               milestone.state === "done" ||
               milestone.state === "completed";
 
-            const selectingReason = reasonFor === milestone.rule_id;
-
             return (
               <div
-                className={`timeline-item ${completed ? "done" : ""}`}
+                className={`timeline-item ${
+                  completed ? "done" : ""
+                }`}
                 key={milestone.rule_id || index}
               >
                 <div className="timeline-marker">
@@ -798,12 +779,14 @@ function Journey({ onNavigate }) {
                 </div>
 
                 <div className="timeline-content">
-                  <span className="timeline-state">
-                    {stateLabel(milestone.state)}
+                  <span>
+                    {milestone.state
+                      ? milestone.state.toUpperCase()
+                      : "CARE MILESTONE"}
                   </span>
 
                   <h2>
-                    {milestoneLabel(milestone.type || "Care visit")}
+                    {milestone.type || "Care visit"}
                   </h2>
 
                   <p>
@@ -826,77 +809,32 @@ function Journey({ onNavigate }) {
                     )}
 
                   {actionable && (
-                    <>
-                      <div className="timeline-actions">
-                        <button
-                          className="soft-button primary"
-                          disabled={saving === milestone.rule_id}
-                          onClick={() =>
-                            handleVisit(milestone, "done")
-                          }
-                        >
-                          {saving === milestone.rule_id
-                            ? "Saving..."
-                            : "I went"}
-                        </button>
+                    <div className="timeline-actions">
+                      <button
+                        className="pixel-button primary"
+                        disabled={saving === milestone.rule_id}
+                        onClick={() =>
+                          handleVisit(milestone, "done")
+                        }
+                      >
+                        {saving === milestone.rule_id
+                          ? "Saving..."
+                          : "I went"}
+                      </button>
 
-                        <button
-                          className="soft-button secondary"
-                          disabled={saving === milestone.rule_id}
-                          onClick={() =>
-                            handleVisit(milestone, "could_not_go")
-                          }
-                        >
-                          I couldn't go
-                        </button>
-                      </div>
-
-                      {selectingReason && (
-                        <div className="reason-panel">
-                          <div className="reason-header">
-                            <div>
-                              <strong>What made it difficult?</strong>
-                              <p>
-                                Your answer helps the care team understand
-                                what support you may need.
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="reason-close"
-                              onClick={() => setReasonFor(null)}
-                              aria-label="Close"
-                            >
-                              ×
-                            </button>
-                          </div>
-
-                          <div className="reason-grid">
-                            {reasons.map((reason) => (
-                              <button
-                                key={reason.id}
-                                type="button"
-                                className="reason-card"
-                                disabled={saving === milestone.rule_id}
-                                onClick={() =>
-                                  handleVisit(
-                                    milestone,
-                                    "could_not_go",
-                                    reason.id
-                                  )
-                                }
-                              >
-                                <span className="reason-icon">
-                                  {reason.icon}
-                                </span>
-                                <span>{reason.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
+                      <button
+                        className="pixel-button secondary"
+                        disabled={saving === milestone.rule_id}
+                        onClick={() =>
+                          handleVisit(
+                            milestone,
+                            "could_not_go"
+                          )
+                        }
+                      >
+                        Couldn't go
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1519,964 +1457,124 @@ function Safety({ onNavigate }) {
 }
 
 function AshaDashboard({ onNavigate }) {
-  const [women, setWomen] = useState(null);
-  const [failed, setFailed] = useState(false);
-  const [online, setOnline] = useState(
-    typeof navigator === "undefined" ? true : navigator.onLine
-  );
-  const [pending, setPending] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  const load = React.useCallback(async () => {
-    setFailed(false);
-
-    try {
-      const result = await listWomen();
-      setWomen(Array.isArray(result) ? result : result.women ?? []);
-    } catch {
-      setFailed(true);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    load();
-  }, [load]);
-
-  React.useEffect(() => {
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
-
-  async function confirm(mother, outcome, reason) {
-    try {
-      setSaving(true);
-
-      await recordVisit(
-        mother.id,
-        outcome,
-        reason
-      );
-
-      setPending(null);
-      await load();
-    } catch (err) {
-      alert(err?.message || "Could not save the visit.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const reasons = [
-    { id: "no_transport", label: "No transport", icon: "🚌" },
-    { id: "no_money", label: "No money", icon: "₹" },
-    { id: "no_childcare", label: "No childcare", icon: "👶" },
-    { id: "family_did_not_permit", label: "Family did not permit", icon: "🏠" },
-    { id: "facility_closed", label: "Facility closed", icon: "🚪" },
-    { id: "did_not_know", label: "Did not know", icon: "?" },
-  ];
-
   return (
-    <div className="asha-page">
-      <div className="asha-container">
+    <div className="asha-shell">
+      <header className="asha-header">
+        <PixelLogo />
+        <div>
+          <span>ASHA WORKER</span>
+          <strong>Meena Kumari</strong>
+        </div>
+      </header>
 
-        <div className="asha-topbar">
+      <main className="asha-main">
+        <div className="page-heading">
+          <span className="date-line">MONDAY · 28 SEPTEMBER</span>
+          <h1>Good morning, Meena.</h1>
+          <p>Here is what needs your attention today.</p>
+        </div>
+
+        <div className="asha-stats">
           <div>
-            <span className="eyebrow">PUNARNAVA · ASHA CARE</span>
-            <h1>Mothers to visit</h1>
-            <p>Care visits that need your attention.</p>
+            <span>12</span>
+            <small>ACTIVE MOTHERS</small>
           </div>
-
-          <div className={`connection-status ${online ? "online" : "offline"}`}>
-            <span />
-            {online ? "Online" : "Offline"}
-          </div>
-        </div>
-
-        <div className="asha-actions">
-          <button
-            className="soft-button secondary"
-            onClick={() => onNavigate("home")}
-          >
-            Home
-          </button>
-
-          <button
-            className="soft-button primary"
-            onClick={() => onNavigate("enrol")}
-          >
-            + Enrol mother
-          </button>
-        </div>
-
-        {failed && (
-          <div className="info-card error-card">
-            <strong>We couldn't reach the care records.</strong>
-            <p>Check your connection and try again.</p>
-            <button
-              className="soft-button secondary"
-              onClick={load}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {!failed && !women && (
-          <div className="loading-state">
-            <div className="loading-sun">✦</div>
-            <h2>Loading mothers...</h2>
-            <p>Getting today's care list.</p>
-          </div>
-        )}
-
-        {women?.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon">♡</div>
-            <h2>No mothers yet</h2>
-            <p>Enrol a mother to begin her care journey.</p>
-            <button
-              className="soft-button primary"
-              onClick={() => onNavigate("enrol")}
-            >
-              Enrol a mother
-            </button>
-          </div>
-        )}
-
-        <div className="asha-list">
-          {women?.map((mother) => {
-            const isPending = pending?.id === mother.id;
-
-            return (
-              <article
-                className={`mother-visit-card ${
-                  mother.max_days_overdue > 0 ? "is-overdue" : ""
-                }`}
-                key={mother.id}
-              >
-                <div className="mother-visit-header">
-                  <div className="mother-avatar">
-                    {(mother.name || "M").charAt(0).toUpperCase()}
-                  </div>
-
-                  <div className="mother-visit-info">
-                    <h2>{mother.name}</h2>
-                    <p>
-                      Day {mother.postpartum_day ?? "—"} after delivery
-                    </p>
-                  </div>
-
-                  <div
-                    className={`visit-status ${
-                      mother.max_days_overdue > 0
-                        ? "overdue"
-                        : "current"
-                    }`}
-                  >
-                    {mother.max_days_overdue > 0
-                      ? `${mother.max_days_overdue} days overdue`
-                      : "Up to date"}
-                  </div>
-                </div>
-
-                {mother.clinical_events?.length > 0 && (
-                  <div className="journey-tags">
-                    {mother.clinical_events.map((event, index) => (
-                      <span
-                        className="soft-tag"
-                        key={`${event.type}-${index}`}
-                      >
-                        {eventLabel(event.type)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {!isPending && (
-                  <div className="visit-actions">
-                    <button
-                      className="soft-button primary"
-                      onClick={() =>
-                        setPending({
-                          id: mother.id,
-                          outcome: "done",
-                        })
-                      }
-                    >
-                      Mark visit done
-                    </button>
-
-                    <button
-                      className="soft-button secondary"
-                      onClick={() =>
-                        setPending({
-                          id: mother.id,
-                          outcome: "could_not_go",
-                        })
-                      }
-                    >
-                      Couldn't go
-                    </button>
-
-                    <button
-                      className="text-button"
-                      onClick={() => {
-                        onNavigate("journey");
-                        try {
-                          localStorage.setItem(
-                            "punarnava_view_woman",
-                            mother.id
-                          );
-                        } catch {}
-                      }}
-                    >
-                      View timeline →
-                    </button>
-                  </div>
-                )}
-
-                {isPending && pending.outcome === "done" && (
-                  <div className="confirmation-panel">
-                    <strong>Mark this visit as completed?</strong>
-                    <p>
-                      This will record the visit for {mother.name}.
-                    </p>
-
-                    <div className="visit-actions">
-                      <button
-                        className="soft-button primary"
-                        disabled={saving}
-                        onClick={() =>
-                          confirm(mother, "done")
-                        }
-                      >
-                        {saving ? "Saving..." : "Yes, mark done"}
-                      </button>
-
-                      <button
-                        className="soft-button secondary"
-                        disabled={saving}
-                        onClick={() => setPending(null)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {isPending && pending.outcome === "could_not_go" && (
-                  <div className="reason-panel">
-                    <div className="reason-header">
-                      <div>
-                        <strong>Why couldn't she go?</strong>
-                        <p>
-                          This helps the care team understand barriers
-                          to accessing care.
-                        </p>
-                      </div>
-
-                      <button
-                        className="reason-close"
-                        onClick={() => setPending(null)}
-                        aria-label="Close"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    <div className="reason-grid">
-                      {reasons.map((reason) => (
-                        <button
-                          key={reason.id}
-                          className="reason-card"
-                          disabled={saving}
-                          onClick={() =>
-                            confirm(
-                              mother,
-                              "could_not_go",
-                              reason.id
-                            )
-                          }
-                        >
-                          <span className="reason-icon">
-                            {reason.icon}
-                          </span>
-                          <span>{reason.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function Clinic({ onNavigate }) {
-  const [womanId, setWomanId] = useState("");
-  const [woman, setWoman] = useState(null);
-  const [interactions, setInteractions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function loadClinicSummary(id) {
-    const cleanId = id.trim();
-
-    if (!cleanId) {
-      setError("Enter a mother's ID to view the handoff.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-      setWoman(null);
-
-      const [womanResult, interactionResult] = await Promise.all([
-        getWoman(cleanId),
-        getInteractions(cleanId).catch(() => []),
-      ]);
-
-      setWoman(womanResult);
-
-      const interactionList = Array.isArray(interactionResult)
-        ? interactionResult
-        : interactionResult?.interactions ?? [];
-
-      setInteractions(interactionList);
-    } catch (err) {
-      setError(
-        err?.message ||
-        "We could not find this mother's care record."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const milestones = woman?.milestones ?? [];
-
-  const completed = milestones.filter(
-    (m) => m.state === "done" || m.state === "completed"
-  );
-
-  const due = milestones.filter(
-    (m) => m.state === "due" || m.state === "missed"
-  );
-
-  const upcoming = milestones.filter(
-    (m) => m.state === "pending"
-  );
-
-  return (
-    <div className="clinic-page">
-      <div className="clinic-container">
-
-        <div className="clinic-header">
           <div>
-            <span className="eyebrow">PUNARNAVA · CLINIC HANDOFF</span>
-            <h1>Receiving care summary</h1>
-            <p>
-              A concise view of the mother's postpartum journey
-              for the receiving care team.
-            </p>
+            <span>03</span>
+            <small>VISITS TODAY</small>
           </div>
-
-          <button
-            className="soft-button secondary"
-            onClick={() => onNavigate("home")}
-          >
-            Home
-          </button>
+          <div>
+            <span>01</span>
+            <small>NEEDS FOLLOW-UP</small>
+          </div>
         </div>
 
-        {!woman && (
-          <section className="clinic-search-card">
-            <span className="date-line">OPEN A CARE RECORD</span>
-
-            <h2>Enter the mother's record ID</h2>
-
-            <p>
-              Use the ID from the ASHA record or shared handoff.
-            </p>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                loadClinicSummary(womanId);
-              }}
-              className="clinic-search-form"
-            >
-              <input
-                value={womanId}
-                onChange={(e) => setWomanId(e.target.value)}
-                placeholder="Mother record ID"
-                aria-label="Mother record ID"
-              />
-
-              <button
-                className="soft-button primary"
-                disabled={loading}
-              >
-                {loading ? "Loading..." : "Open summary"}
-              </button>
-            </form>
-
-            {error && (
-              <div className="clinic-error">
-                {error}
-              </div>
-            )}
-          </section>
-        )}
-
-        {loading && !woman && (
-          <div className="loading-state">
-            <div className="loading-sun">✦</div>
-            <h2>Preparing the handoff...</h2>
-            <p>Getting the latest care record.</p>
+        <section className="queue-section">
+          <div className="section-heading">
+            <div>
+              <span>YOUR QUEUE</span>
+              <h2>Today's visits</h2>
+            </div>
+            <button onClick={() => onNavigate("enrol")}>+ Enrol mother</button>
           </div>
-        )}
 
-        {woman && (
-          <>
-            <div className="clinic-summary-header">
-              <div className="clinic-person">
-                <div className="clinic-avatar">
-                  {(woman.name || "M").charAt(0).toUpperCase()}
+          {[
+            ["01", "Lakshmi Devi", "Week 7 · routine follow-up", "10:00 AM", "green"],
+            ["02", "Anitha R.", "Week 3 · wellness check", "11:30 AM", "yellow"],
+            ["03", "Shobha K.", "Needs follow-up", "02:00 PM", "peach"],
+          ].map(([number, name, info, time, tone]) => (
+            <div className="queue-row" key={number}>
+              <span className="queue-number">{number}</span>
+              <div className="queue-person">
+                <div className={`queue-avatar ${tone}`}>
+                  {name.charAt(0)}
                 </div>
-
                 <div>
-                  <span className="date-line">MOTHER</span>
-                  <h2>{woman.name}</h2>
-                  <p>
-                    Day {woman.postpartum_day ?? "—"} after delivery
-                    {woman.delivery_date
-                      ? ` · ${woman.delivery_date}`
-                      : ""}
-                    {woman.mode_of_delivery
-                      ? ` · ${woman.mode_of_delivery}`
-                      : ""}
-                  </p>
+                  <strong>{name}</strong>
+                  <span>{info}</span>
                 </div>
               </div>
-
-              <button
-                className="soft-button secondary"
-                onClick={() => {
-                  setWoman(null);
-                  setInteractions([]);
-                  setError("");
-                }}
-              >
-                Open another
-              </button>
+              <time>{time}</time>
+              <button>Open →</button>
             </div>
-
-            <div className="clinic-facts">
-              {woman.discharge_hb != null && (
-                <div className="clinic-fact">
-                  <span>Discharge Hb</span>
-                  <strong>{woman.discharge_hb}</strong>
-                </div>
-              )}
-
-              <div className="clinic-fact">
-                <span>Completed care</span>
-                <strong>{completed.length}</strong>
-              </div>
-
-              <div className="clinic-fact">
-                <span>Due / overdue</span>
-                <strong>{due.length}</strong>
-              </div>
-
-              <div className="clinic-fact">
-                <span>Upcoming</span>
-                <strong>{upcoming.length}</strong>
-              </div>
-            </div>
-
-            {woman.clinical_events?.length > 0 && (
-              <section className="clinic-section">
-                <span className="date-line">CLINICAL CONTEXT</span>
-                <h2>Relevant history</h2>
-
-                <div className="journey-tags">
-                  {woman.clinical_events.map((event, index) => (
-                    <span
-                      className="soft-tag"
-                      key={`${event.type}-${index}`}
-                    >
-                      {eventLabel(event.type)}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <div className="clinic-columns">
-
-              <section className="clinic-column">
-                <div className="clinic-column-heading overdue-heading">
-                  <span>01</span>
-                  <div>
-                    <h2>Due or overdue</h2>
-                    <p>Needs attention now</p>
-                  </div>
-                </div>
-
-                {due.length === 0 ? (
-                  <div className="clinic-empty">
-                    Nothing is currently overdue.
-                  </div>
-                ) : (
-                  due.map((milestone) => (
-                    <div
-                      className="clinic-milestone urgent"
-                      key={milestone.rule_id}
-                    >
-                      <strong>
-                        {milestoneLabel(milestone.type)}
-                      </strong>
-
-                      <span>
-                        Due {milestone.due_date || "—"}
-                      </span>
-
-                      {milestone.state === "missed" &&
-                        milestone.days_overdue && (
-                          <small>
-                            {milestone.days_overdue} days overdue
-                          </small>
-                        )}
-
-                      {milestone.citation && (
-                        <em>{milestone.citation}</em>
-                      )}
-                    </div>
-                  ))
-                )}
-              </section>
-
-              <section className="clinic-column">
-                <div className="clinic-column-heading">
-                  <span>02</span>
-                  <div>
-                    <h2>Completed</h2>
-                    <p>Care already received</p>
-                  </div>
-                </div>
-
-                {completed.length === 0 ? (
-                  <div className="clinic-empty">
-                    No completed milestones yet.
-                  </div>
-                ) : (
-                  completed.map((milestone) => (
-                    <div
-                      className="clinic-milestone"
-                      key={milestone.rule_id}
-                    >
-                      <strong>
-                        {milestoneLabel(milestone.type)}
-                      </strong>
-
-                      <span>
-                        Completed · {milestone.due_date || "—"}
-                      </span>
-
-                      {milestone.citation && (
-                        <em>{milestone.citation}</em>
-                      )}
-                    </div>
-                  ))
-                )}
-              </section>
-
-              <section className="clinic-column">
-                <div className="clinic-column-heading">
-                  <span>03</span>
-                  <div>
-                    <h2>Upcoming</h2>
-                    <p>Continue the care plan</p>
-                  </div>
-                </div>
-
-                {upcoming.length === 0 ? (
-                  <div className="clinic-empty">
-                    Nothing upcoming right now.
-                  </div>
-                ) : (
-                  upcoming.map((milestone) => (
-                    <div
-                      className="clinic-milestone"
-                      key={milestone.rule_id}
-                    >
-                      <strong>
-                        {milestoneLabel(milestone.type)}
-                      </strong>
-
-                      <span>
-                        Due {milestone.due_date || "—"}
-                      </span>
-
-                      {milestone.citation && (
-                        <em>{milestone.citation}</em>
-                      )}
-                    </div>
-                  ))
-                )}
-              </section>
-            </div>
-
-            {interactions.length > 0 && (
-              <section className="clinic-section interactions-section">
-                <span className="date-line">CARE CONTACT</span>
-                <h2>Recent care interactions</h2>
-
-                <div className="interaction-list">
-                  {interactions.slice(0, 5).map((interaction, index) => (
-                    <div
-                      className="interaction-item"
-                      key={interaction.id || index}
-                    >
-                      <span>
-                        {interaction.reason ||
-                          interaction.outcome ||
-                          "Care interaction"}
-                      </span>
-
-                      {interaction.created_at && (
-                        <small>
-                          {interaction.created_at}
-                        </small>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <div className="clinic-footer-note">
-              <strong>Care context travels with the mother.</strong>
-              <p>
-                Each milestone is linked to the care guidance used
-                to generate the postpartum plan.
-              </p>
-            </div>
-          </>
-        )}
-      </div>
+          ))}
+        </section>
+      </main>
     </div>
   );
 }
 
 function Enrol({ onNavigate }) {
-  const [form, setForm] = useState({
-    woman_name: "",
-    delivery_date: "",
-    mode_of_delivery: "normal",
-    discharge_hb: "",
-    gestational_diabetes: false,
-    on_metformin: false,
-    hypertensive_in_pregnancy: false,
-    significant_blood_loss: false,
-    language: "te",
-  });
-
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [created, setCreated] = useState(null);
-
-  function update(key, value) {
-    setForm((previous) => ({
-      ...previous,
-      [key]: value,
-    }));
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-
-    try {
-      setBusy(true);
-      setError("");
-
-      const payload = {
-        ...form,
-        woman_name: form.woman_name.trim(),
-        discharge_hb:
-          form.discharge_hb === ""
-            ? null
-            : Number(form.discharge_hb),
-      };
-
-      const result = await enrolMother(payload);
-
-      setCreated(result.woman);
-    } catch (err) {
-      setError(
-        err?.message ||
-        "Could not enrol this mother. Please check the details."
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (created) {
-    return (
-      <div className="enrol-page">
-        <div className="enrol-container">
-          <div className="success-card">
-            <div className="success-symbol">✓</div>
-
-            <span className="date-line">ENROLMENT COMPLETE</span>
-
-            <h1>{created.name} is enrolled.</h1>
-
-            <p>
-              Her postpartum care journey has been created successfully.
-            </p>
-
-            <div className="success-actions">
-              <button
-                className="soft-button primary"
-                onClick={() => {
-                  try {
-                    localStorage.setItem(
-                      "punarnava_view_woman",
-                      created.id
-                    );
-                  } catch {}
-                  onNavigate("journey");
-                }}
-              >
-                View care journey
-              </button>
-
-              <button
-                className="soft-button secondary"
-                onClick={() => onNavigate("asha")}
-              >
-                See ASHA queue
-              </button>
-
-              <button
-                className="text-button"
-                onClick={() => setCreated(null)}
-              >
-                Enrol another mother
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="enrol-page">
-      <div className="enrol-container">
+    <div className="simple-page">
+      <header className="simple-header">
+        <PixelLogo />
+        <button onClick={() => onNavigate("asha")}>← Back to dashboard</button>
+      </header>
 
-        <div className="enrol-header">
-          <button
-            className="text-button"
-            onClick={() => onNavigate("home")}
-          >
-            ← Back home
-          </button>
+      <main className="enrol-main">
+        <span className="date-line">NEW ENROLMENT</span>
+        <h1>Begin a mother's care journey.</h1>
+        <p>Capture only what is needed to connect her with care.</p>
 
-          <span className="eyebrow">PUNARNAVA · ENROLMENT</span>
+        <section className="enrol-form">
+          <div className="form-row">
+            <label>
+              Mother's name
+              <input placeholder="Full name" />
+            </label>
 
-          <h1>Begin a mother's care journey.</h1>
+            <label>
+              Phone number
+              <input placeholder="+91 XXXXX XXXXX" />
+            </label>
+          </div>
 
-          <p>
-            Add the essential delivery details so Punarnava can
-            create her postpartum care plan.
-          </p>
-        </div>
+          <div className="form-row">
+            <label>
+              Date of birth
+              <input type="date" />
+            </label>
 
-        <form className="enrol-form" onSubmit={submit}>
+            <label>
+              Delivery date
+              <input type="date" />
+            </label>
+          </div>
 
-          <section className="form-section">
-            <span className="form-number">01</span>
+          <label>
+            Notes
+            <textarea placeholder="Anything important to remember..." />
+          </label>
 
-            <div className="form-section-content">
-              <h2>About the mother</h2>
-
-              <label className="form-field">
-                <span>Mother's name</span>
-                <input
-                  value={form.woman_name}
-                  onChange={(e) =>
-                    update("woman_name", e.target.value)
-                  }
-                  placeholder="Enter her name"
-                  required
-                />
-              </label>
-
-              <label className="form-field">
-                <span>Delivery date</span>
-                <input
-                  type="date"
-                  value={form.delivery_date}
-                  onChange={(e) =>
-                    update("delivery_date", e.target.value)
-                  }
-                  required
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="form-section">
-            <span className="form-number">02</span>
-
-            <div className="form-section-content">
-              <h2>Delivery details</h2>
-
-              <label className="form-field">
-                <span>Mode of delivery</span>
-                <select
-                  value={form.mode_of_delivery}
-                  onChange={(e) =>
-                    update("mode_of_delivery", e.target.value)
-                  }
-                >
-                  <option value="normal">Normal delivery</option>
-                  <option value="LSCS">C-section (LSCS)</option>
-                  <option value="assisted">Assisted delivery</option>
-                </select>
-              </label>
-
-              <label className="form-field">
-                <span>
-                  Haemoglobin at discharge
-                  <small>Optional</small>
-                </span>
-
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={form.discharge_hb}
-                  onChange={(e) =>
-                    update("discharge_hb", e.target.value)
-                  }
-                  placeholder="e.g. 10.5"
-                />
-              </label>
-
-              <label className="form-field">
-                <span>Preferred language</span>
-
-                <select
-                  value={form.language}
-                  onChange={(e) =>
-                    update("language", e.target.value)
-                  }
-                >
-                  <option value="te">Telugu</option>
-                  <option value="ml">Malayalam</option>
-                  <option value="pa">Punjabi</option>
-                  <option value="en">English</option>
-                </select>
-              </label>
-            </div>
-          </section>
-
-          <section className="form-section">
-            <span className="form-number">03</span>
-
-            <div className="form-section-content">
-              <h2>Pregnancy or delivery history</h2>
-
-              <p className="form-help">
-                Select anything relevant to her recent pregnancy or delivery.
-              </p>
-
-              <div className="check-grid">
-
-                {[
-                  [
-                    "gestational_diabetes",
-                    "Gestational diabetes",
-                  ],
-                  [
-                    "on_metformin",
-                    "Taking metformin",
-                  ],
-                  [
-                    "hypertensive_in_pregnancy",
-                    "High blood pressure",
-                  ],
-                  [
-                    "significant_blood_loss",
-                    "Significant blood loss",
-                  ],
-                ].map(([key, label]) => (
-                  <label
-                    className={`check-card ${
-                      form[key] ? "selected" : ""
-                    }`}
-                    key={key}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form[key]}
-                      onChange={(e) =>
-                        update(key, e.target.checked)
-                      }
-                    />
-
-                    <span className="check-mark">
-                      {form[key] ? "✓" : ""}
-                    </span>
-
-                    <span>{label}</span>
-                  </label>
-                ))}
-
-              </div>
-            </div>
-          </section>
-
-          {error && (
-            <div className="form-error" role="alert">
-              {error}
-            </div>
-          )}
-
-          <button
-            className="soft-button primary enrol-submit"
-            disabled={busy}
-          >
-            {busy
-              ? "Creating care journey..."
-              : "Enrol mother"}
-          </button>
-        </form>
-      </div>
+          <PixelButton onClick={() => onNavigate("asha")}>
+            Enrol mother
+          </PixelButton>
+        </section>
+      </main>
     </div>
   );
 }
-
 
 function About({ onNavigate }) {
   return (
@@ -2531,7 +1629,6 @@ function App() {
   if (page === "care") return <Wellness onNavigate={setPage} />;
   if (page === "journal") return <Journal onNavigate={setPage} />;
   if (page === "safety") return <Safety onNavigate={setPage} />;
-  if (page === "clinic") return <Clinic onNavigate={setPage} />;
   if (page === "asha") return <AshaDashboard onNavigate={setPage} />;
   if (page === "enrol") return <Enrol onNavigate={setPage} />;
   if (page === "about") return <About onNavigate={setPage} />;
