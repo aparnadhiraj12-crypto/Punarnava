@@ -1,116 +1,176 @@
-﻿// routes/mother/Timeline.jsx
-// Nav, hero-with-illustration slot, risk flags, vine-style vertical timeline --
-// all driven by the live record (GET /api/record/women/:id), not fixtures.
-// Defaults to the seeded demo mother so /m keeps working with no id.
-
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { getWoman } from "../../lib/api";
-import PixelIcon from "../../components/PixelIcon";
-import PixelScene from "../../components/PixelScene";
-import StatusStamp from "../../components/StatusStamp";
-import { milestoneLabel, eventLabel, stateLabel, stateStampStatus } from "../../lib/labels";
+import { getWoman, recordVisit } from "../../lib/api";
+import VoiceButton from "../../components/VoiceButton";
+import CouldNotGoReasons from "../../components/CouldNotGoReasons";
 
-const DEFAULT_ID = "demo-lakshmi";
+/**
+ * PRD, C4: "The screen that carries the pitch is the mother's timeline...
+ * with no visual break at delivery and none at six weeks. That continuity
+ * is the entire thesis rendered as a UI."
+ *
+ * Wired to the real record service: fetches the seeded demo mother
+ * (Lakshmi — GDM on metformin, discharge Hb 8.2, see backend/main.py
+ * seed_demo_data) by her fixed demo ID. Milestones come back
+ * live-computed by the scheduler, not hardcoded here. Real version reads
+ * woman_id from the route/auth context instead of a fixed demo ID.
+ */
+const DEMO_WOMAN_ID = "demo-lakshmi";
 
-function Nav() {
-  return (
-    <nav className="bg-forest text-cream flex items-center justify-between px-6 py-3">
-      <div className="flex items-center gap-2 font-display font-semibold">
-        <PixelIcon name="home" size={20} />
-        PUNARNAVA
-      </div>
-      <div className="flex items-center gap-6 text-sm">
-        <a href="/m" className="underline underline-offset-4">Mother</a>
-        <a href="/a">ASHA Queue</a>
-        <a href="/c/handoff/demo-lakshmi">Clinic / Handoff</a>
-      </div>
-    </nav>
-  );
-}
+const STATE_STYLE = {
+  due: "border-due text-due",
+  missed: "border-overdue text-overdue",
+  done: "border-done text-done",
+  pending: "border-clay-500 text-clay-700",
+};
 
-export default function Timeline() {
-  const { id } = useParams();
-  const womanId = id || DEFAULT_ID;
+const LABELS = {
+  postnatal_visit: "Postnatal visit",
+  six_week_review: "Six-week review",
+  postpartum_glucose_test: "Glucose test",
+  blood_pressure_review: "Blood pressure review",
+  haemoglobin_recheck: "Haemoglobin recheck",
+  cervical_screening_enrolment: "Cervical screening",
+  contraception_counselling: "Contraception counselling",
+  annual_wellness_check: "Annual wellness check",
+};
+
+export default function MotherTimeline() {
   const [woman, setWoman] = useState(null);
+  const [milestones, setMilestones] = useState([]);
+  const [active, setActive] = useState(null);
+  const [reason, setReason] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    setWoman(null);
-    setError(false);
-    getWoman(womanId).then(setWoman).catch(() => setError(true));
-  }, [womanId]);
+    getWoman(DEMO_WOMAN_ID)
+      .then((w) => {
+        setWoman(w);
+        setMilestones(w.milestones || []);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const markDone = (m) => {
+    recordVisit(DEMO_WOMAN_ID, "done", null, m.rule_id);
+    setMilestones((prev) =>
+      prev.map((x) => (x.rule_id === m.rule_id ? { ...x, state: "done", days_overdue: -1 } : x))
+    );
+    setActive(null);
+  };
+
+  const submitCouldNotGo = (m) => {
+    recordVisit(DEMO_WOMAN_ID, "could_not_go", reason, m.rule_id);
+    setActive(null);
+    setReason(null);
+  };
 
   return (
-    <main className="bg-paper min-h-screen">
-      <Nav />
+    <div className="min-h-screen bg-clay-50 pb-24" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <header className="px-5 pt-6 pb-4">
+        <h1 className="text-lg font-semibold text-plum-700">Your record</h1>
+        <p className="text-sm text-clay-700">Pregnancy → now → what's ahead. Nothing resets.</p>
+      </header>
 
-      {/* Hero -- PixelScene is a code-drawn placeholder illustration.
-          min-h (not a fixed h-64) so it grows with the card instead of
-          the card overflowing upward through the nav when content is tall. */}
-      <div className="relative min-h-[16rem] flex items-end p-6">
-        <PixelScene className="absolute inset-0" />
-        {woman && (
-          <div className="relative pixel-card max-w-sm bg-cream/95 my-4">
-            <p className="text-sm text-earth mb-1">Postpartum care journey</p>
-            <h1 className="text-2xl mb-3">{woman.name}</h1>
-            <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-              <div>
-                <PixelIcon name="calendar" size={16} className="mb-1 text-clay" />
-                <p className="text-earth">Delivery date</p>
-                <p className="font-medium">{woman.delivery_date}</p>
-              </div>
-              <div>
-                <p className="text-earth mb-1">Mode</p>
-                <p className="font-medium">{woman.mode_of_delivery ?? "--"}</p>
-              </div>
-              <div>
-                <p className="text-earth mb-1">Days postpartum</p>
-                <p className="font-medium">{woman.postpartum_day}</p>
-              </div>
-            </div>
-            {woman.clinical_events?.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {woman.clinical_events.map((e) => (
-                  <StatusStamp key={e.type} status="risk">{eventLabel(e.type)}</StatusStamp>
-                ))}
-              </div>
-            )}
+      {loading && <p className="px-5 text-clay-700">Loading…</p>}
+      {error && (
+        <p className="px-5 text-overdue text-sm">
+          Couldn't reach the backend. Run <code>uvicorn main:app --reload</code> in{" "}
+          <code>backend/</code> first.
+        </p>
+      )}
+
+      {/* The continuous spine: a single vertical line, delivery marked as one
+          point on it (not a break), postpartum items and long-horizon
+          milestones on the same axis. */}
+      <div className="relative px-5">
+        <div className="absolute left-9 top-0 bottom-0 w-0.5 bg-clay-100" aria-hidden="true" />
+
+        {/* Delivery marker — a point on the line, not a wall */}
+        <div className="relative flex items-center gap-4 py-3">
+          <div className="z-10 w-4 h-4 rounded-full bg-plum-500 border-4 border-clay-50 ml-6" />
+          <div>
+            <p className="text-sm font-medium text-plum-700">Delivery</p>
+            <p className="text-xs text-clay-700">{woman?.delivery_date}</p>
           </div>
-        )}
+        </div>
+
+        {milestones.map((m) => {
+          const isOverdue = m.days_overdue > 0 && m.state !== "done";
+          const state = m.state === "done" ? "done" : isOverdue ? "missed" : "due";
+          return (
+            <div key={m.rule_id} className="relative flex items-start gap-4 py-3">
+              <div
+                className={`z-10 w-4 h-4 rounded-full border-4 border-clay-50 ml-6 ${
+                  state === "done" ? "bg-done" : state === "missed" ? "bg-overdue" : "bg-due"
+                }`}
+              />
+              <button
+                onClick={() => setActive(active?.rule_id === m.rule_id ? null : m)}
+                className={`flex-1 text-left bg-white rounded-xl p-4 border-l-4 shadow-sm ${STATE_STYLE[state]}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-medium text-plum-700">{LABELS[m.type] || m.type}</p>
+                    <p className="text-xs text-clay-700">Due {m.due_date}</p>
+                    {isOverdue && (
+                      <p className="text-xs text-overdue font-medium">{m.days_overdue} days overdue</p>
+                    )}
+                  </div>
+                  <VoiceButton
+                    label={`Hear about ${LABELS[m.type] || m.type}`}
+                    onSpeak={(e) => {
+                      e.stopPropagation();
+                      // TRD C3: template + slots, never free generation.
+                      // Stub: real version calls outreach voice delivery.
+                    }}
+                  />
+                </div>
+                <p className="text-[11px] text-clay-500 mt-2">Source: {m.citation}</p>
+              </button>
+            </div>
+          );
+        })}
       </div>
 
-      <section className="max-w-lg mx-auto px-6 py-10">
-        <h2 className="text-xl mb-6">Timeline</h2>
-
-        {error && (
-          <p className="pixel-badge-overdue mb-4">
-            <PixelIcon name="overdue" size={14} /> Couldn't reach the backend
-          </p>
-        )}
-        {!error && !woman && <p className="text-earth">Loading...</p>}
-
-        {woman && (
-          <ol className="relative">
-            {woman.milestones.map((m, i) => (
-              <li key={m.rule_id} className="flex gap-4 pb-6 last:pb-0">
-                <div className="flex flex-col items-center">
-                  <span className="w-3 h-3 rounded-full bg-forest border-2 border-cream shadow-pixel" />
-                  {i < woman.milestones.length - 1 && <div className="pixel-vine flex-1 mt-1" />}
-                </div>
-                <div className="pb-1">
-                  <p className="font-medium">{milestoneLabel(m.type)}</p>
-                  <StatusStamp status={stateStampStatus(m.state)}>
-                    {`${stateLabel(m.state)} - ${m.due_date}${m.state === "missed" ? ` - ${m.days_overdue} days overdue` : ""}`}
-                  </StatusStamp>
-                  {/* NFR-25: every milestone traceable to the rule + citation that produced it */}
-                  <p className="text-xs text-earth mt-1">{m.citation}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </main>
+      {/* Action sheet for the selected milestone */}
+      {active && (
+        <div
+          className="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-lg p-5 border-t border-clay-100"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
+        >
+          <p className="font-medium text-plum-700 mb-3">{LABELS[active.type] || active.type}</p>
+          <div className="flex gap-3 mb-4">
+            <button
+              onClick={() => markDone(active)}
+              className="flex-1 py-3 rounded-xl bg-done text-white font-medium"
+            >
+              Done
+            </button>
+            <button
+              onClick={() => setReason("picking")}
+              className="flex-1 py-3 rounded-xl bg-clay-100 text-clay-700 font-medium"
+            >
+              Could not go
+            </button>
+          </div>
+          {reason && (
+            <div className="mb-3">
+              <CouldNotGoReasons
+                selected={reason === "picking" ? null : reason}
+                onSelect={(r) => {
+                  setReason(r);
+                  submitCouldNotGo(active);
+                }}
+              />
+            </div>
+          )}
+          <button onClick={() => setActive(null)} className="w-full text-sm text-clay-500 py-2">
+            Close
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

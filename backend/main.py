@@ -17,6 +17,11 @@ from ingestion.router import router as ingestion_router
 from record.router import router as record_router, create_woman, WomanRecord, ClinicalEvent
 from scheduler.router import router as scheduler_router
 from outreach.router import router as outreach_router
+from auth.router import router as auth_router
+from auth.router import router as auth_router
+from wellness.router import router as wellness_router
+from journal.router import router as journal_router
+from safety.router import router as safety_router
 
 app = FastAPI(
     title="PUNARNAVA API",
@@ -34,7 +39,12 @@ app.add_middleware(
 app.include_router(ingestion_router, prefix="/api/ingestion", tags=["ingestion"])
 app.include_router(record_router, prefix="/api/record", tags=["record"])
 app.include_router(scheduler_router, prefix="/api/scheduler", tags=["scheduler"])
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(wellness_router, prefix="/api/wellness", tags=["wellness"])
 app.include_router(outreach_router, prefix="/api/outreach", tags=["outreach"])
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+app.include_router(journal_router, prefix="/api/journal", tags=["journal"])
+app.include_router(safety_router, prefix="/api/safety", tags=["safety"])
 
 
 @app.get("/api/health")
