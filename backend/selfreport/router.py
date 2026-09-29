@@ -3,7 +3,8 @@ Self-report service.
 
 Not in the original v0 PRD scope -- added after. Lets a mother keep her
 own log spanning pregnancy through postpartum: doctor visits, issues she
-noticed, and general notes, in her own words.
+noticed, medication she reports taking, and general notes, in her own
+words.
 
 The boundary that matters, stated plainly because it protects the same
 defence the scheduler relies on: this is HER account, never the clinical
@@ -24,6 +25,10 @@ product, not just this feature. So:
     she reported" heading, never blended into the clinical events list.
     The doctor reads both and decides what matters -- the system doesn't
     decide for him.
+  - The "medication" type here is HER own log of what she reports
+    taking -- separate from clinical.router's prescribed-medication
+    entries, which are clinician-entered and transcribed, never her own
+    words. Keep the two distinct; do not merge them.
 
 Still stubbed: in-memory only, resets on restart. No auth check yet, same
 caveat as journal.router -- wire in auth.router.get_current_user before
@@ -37,7 +42,7 @@ import uuid
 
 router = APIRouter()
 
-TYPES = ("doctor_visit", "issue", "note")
+TYPES = ("doctor_visit", "issue", "note", "medication")
 
 _ENTRIES: dict[str, list[dict]] = {}
 
@@ -51,8 +56,9 @@ class SelfReportRequest(BaseModel):
     woman_id: str
     type: str
     text: str
-    visit_date: Optional[date] = None
-    provider_name: Optional[str] = None
+    visit_date: Optional[date] = None       # doctor_visit only
+    provider_name: Optional[str] = None     # doctor_visit only, her own words
+    medication_name: Optional[str] = None   # medication only, her own words
 
 
 @router.post("/self-report")
@@ -69,6 +75,7 @@ def add_entry(req: SelfReportRequest):
         "text": req.text,
         "visit_date": req.visit_date.isoformat() if req.visit_date else None,
         "provider_name": req.provider_name,
+        "medication_name": req.medication_name,
     }
     _ENTRIES.setdefault(req.woman_id, []).append(entry)
     return {"status": "created", "entry": entry, "safety_note": _SAFETY_NOTE}

@@ -249,3 +249,148 @@ def test_self_report_responses_carry_no_scoring_fields():
     r = client.post("/api/record/self-report", json={"woman_id": wid, "type": "issue", "text": "some issue"})
     assert not (set(_keys(r.json())) & FORBIDDEN)
     assert not (set(_keys(client.get(f"/api/record/self-report/{wid}").json())) & FORBIDDEN)
+
+
+# ---- wellness extensions: nutrients, taste, saved plan, gym ----
+
+def test_diet_content_has_nutrients_and_avoid_notes():
+    items = [c for c in client.get("/api/wellness/content", params={"stage": "pregnancy_t3"}).json()["content"]
+             if c["type"] == "diet"]
+    assert items and items[0]["nutrients"]["iron_mg"] is not None
+
+
+def test_exercise_content_has_subtype():
+    items = client.get("/api/wellness/content", params={"stage": "postpartum_six_week"}).json()["content"]
+    subtypes = {c["subtype"] for c in items if c["type"] == "exercise"}
+    assert {"pelvic_floor", "cardio", "pilates"} <= subtypes
+
+
+def test_gym_is_a_provider_type():
+    r = client.get("/api/wellness/providers", params={"type": "gym"}).json()["providers"]
+    assert r and all(p["type"] == "gym" for p in r)
+
+
+def test_taste_preference_round_trip():
+    wid = "taste-1"
+    client.post("/api/wellness/taste-preference", json={"woman_id": wid, "tags": ["vegetarian", "spicy"]})
+    r = client.get(f"/api/wellness/taste-preference/{wid}").json()
+    assert r["tags"] == ["vegetarian", "spicy"]
+
+
+def test_saved_plan_round_trip_includes_full_content():
+    wid = "saved-1"
+    content_id = client.get("/api/wellness/content").json()["content"][0]["id"]
+    client.post(f"/api/wellness/saved-plan/{wid}/{content_id}")
+    items = client.get(f"/api/wellness/saved-plan/{wid}").json()["items"]
+    assert items and items[0]["id"] == content_id and "title" in items[0]
+    client.delete(f"/api/wellness/saved-plan/{wid}/{content_id}")
+    assert client.get(f"/api/wellness/saved-plan/{wid}").json()["items"] == []
+
+
+# ---- meditation: sourced, stage-filtered, never journal-triggered ----
+
+def test_meditation_techniques_have_citations():
+    for t in client.get("/api/meditation/techniques").json()["techniques"]:
+        assert t["source_citation"].strip()
+
+
+def test_meditation_filters_by_stage_only():
+    items = client.get("/api/meditation/techniques", params={"stage": "postpartum_early"}).json()["techniques"]
+    assert items and all(t["stage"] == "postpartum_early" for t in items)
+
+
+# ---- clinical: doctor-confirmed medication, separate from her own log ----
+
+def test_clinic_can_add_prescribed_medication_non_clinic_cannot():
+    wid = "clinicaltest-1"
+    ok = client.post("/api/clinical/medication", json={
+        "woman_id": wid, "medication_name": "Iron tablets", "dosage": "1/day",
+        "prescribed_by": "Dr. Rao", "caller_role": "clinic"})
+    assert ok.status_code == 200
+    denied = client.post("/api/clinical/medication", json={
+        "woman_id": wid, "medication_name": "x", "prescribed_by": "someone", "caller_role": "mother"})
+    assert denied.status_code == 403
+    entries = client.get(f"/api/clinical/medication/{wid}").json()["entries"]
+    assert entries[0]["medication_name"] == "Iron tablets"
+
+
+def test_her_own_medication_log_is_separate_from_prescribed():
+    wid = "clinicaltest-2"
+    client.post("/api/record/self-report", json={
+        "woman_id": wid, "type": "medication", "text": "took my iron tablet",
+        "medication_name": "Iron tablets"})
+    client.post("/api/clinical/medication", json={
+        "woman_id": wid, "medication_name": "Iron tablets", "prescribed_by": "Dr. Rao"})
+    her_log = client.get(f"/api/record/self-report/{wid}").json()["entries"]
+    prescribed = client.get(f"/api/clinical/medication/{wid}").json()["entries"]
+    assert len(her_log) == 1 and len(prescribed) == 1
+    assert "prescribed_by" not in her_log[0]
+    assert "type" not in prescribed[0]
+
+
+# ---- family: scoped view, journal and issues never reachable ----
+
+def test_family_shared_view_excludes_journal_and_issues():
+    from record.router import create_woman, WomanRecord
+    from datetime import date
+    wid = create_woman(WomanRecord(name="Family Scope Test", delivery_date=date(2026, 1, 1)))["id"]
+
+    client.post("/api/journal/entry", json={"woman_id": wid, "mood_emoji": "\U0001F622", "note": "hard day, in-laws again"})
+    client.post("/api/record/self-report", json={"woman_id": wid, "type": "issue", "text": "private issue, not for sharing"})
+    client.post("/api/record/self-report", json={"woman_id": wid, "type": "doctor_visit", "text": "routine check"})
+    client.post("/api/clinical/medication", json={"woman_id": wid, "medication_name": "Iron", "prescribed_by": "Dr. Rao"})
+
+    grant = client.post("/api/family/grant", json={"woman_id": wid, "grantee_name": "husband"}).json()
+    view = client.get(f"/api/family/shared-view/{grant['id']}").json()
+
+    dumped = str(view)
+    assert "in-laws" not in dumped and "hard day" not in dumped
+    assert "private issue" not in dumped
+    assert "doctor_visit" in dumped
+    assert view["prescribed_medication"][0]["medication_name"] == "Iron"
+    assert "journal" not in dumped.lower()
+
+
+def test_family_grant_revocation_blocks_access():
+    from record.router import create_woman, WomanRecord
+    from datetime import date
+    wid = create_woman(WomanRecord(name="Revoke Test", delivery_date=date(2026, 1, 1)))["id"]
+    grant = client.post("/api/family/grant", json={"woman_id": wid, "grantee_name": "husband"}).json()
+    assert client.get(f"/api/family/shared-view/{grant['id']}").status_code == 200
+    client.post(f"/api/family/grant/{grant['id']}/revoke")
+    assert client.get(f"/api/family/shared-view/{grant['id']}").status_code == 403
+
+
+def test_she_can_see_her_own_grant_list():
+    from record.router import create_woman, WomanRecord
+    from datetime import date
+    wid = create_woman(WomanRecord(name="Grant List Test", delivery_date=date(2026, 1, 1)))["id"]
+    client.post("/api/family/grant", json={"woman_id": wid, "grantee_name": "husband"})
+    grants = client.get(f"/api/family/grants/{wid}").json()["grants"]
+    assert len(grants) == 1 and grants[0]["grantee_name"] == "husband"
+
+
+# ---- report: compilation only, no scoring, journal presence-only ----
+
+def test_report_is_present_but_never_scores():
+    from record.router import create_woman, WomanRecord, ClinicalEvent
+    from datetime import date
+    wid = create_woman(WomanRecord(
+        name="Report Test", delivery_date=date(2026, 6, 1),
+        clinical_events=[ClinicalEvent(type="gestational_diabetes")])
+    )["id"]
+    client.post("/api/journal/entry", json={"woman_id": wid, "mood_emoji": "\U0001F622"})
+    client.post("/api/journal/entry", json={"woman_id": wid, "mood_emoji": "\U0001F642"})
+    client.post("/api/record/self-report", json={"woman_id": wid, "type": "issue", "text": "felt unwell"})
+
+    r = client.get(f"/api/report/{wid}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["journal_activity"] == {"has_entries": True, "entry_count": 2}
+    assert "note" not in str(body["journal_activity"])
+    assert body["milestone_counts"]["missed"] + body["milestone_counts"]["due"] >= 0
+    assert not (set(_keys(body)) & FORBIDDEN)
+
+
+def test_report_404_for_unknown_woman():
+    assert client.get("/api/report/does-not-exist").status_code == 404
