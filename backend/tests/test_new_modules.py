@@ -203,3 +203,49 @@ def test_danger_signs_unsupported_language_falls_back_and_says_so():
 
 def test_danger_signs_carry_no_scoring_fields():
     assert not (set(_keys(client.get("/api/safety/danger-signs").json())) & FORBIDDEN)
+
+
+# ---- self-report: her own log, separate from the clinical record ----
+
+def test_self_report_round_trip_newest_first_with_safety_note():
+    wid = "selfreport-1"
+    r1 = client.post("/api/record/self-report", json={
+        "woman_id": wid, "type": "note", "text": "feeling okay today"})
+    assert r1.status_code == 200
+    assert r1.json()["safety_note"]
+    client.post("/api/record/self-report", json={
+        "woman_id": wid, "type": "doctor_visit", "text": "check-up",
+        "visit_date": "2026-09-01", "provider_name": "Dr. Rao"})
+    entries = client.get(f"/api/record/self-report/{wid}").json()["entries"]
+    assert [e["type"] for e in entries] == ["doctor_visit", "note"]
+    assert entries[0]["provider_name"] == "Dr. Rao"
+
+
+def test_self_report_rejects_bad_type_and_empty_text():
+    base = {"woman_id": "selfreport-2"}
+    assert client.post("/api/record/self-report", json={**base, "type": "diagnosis", "text": "x"}).status_code == 400
+    assert client.post("/api/record/self-report", json={**base, "type": "note", "text": "   "}).status_code == 400
+
+
+def test_self_report_never_touches_the_clinical_record():
+    """Compliance: logging an issue must not change her clinical_events or
+    her milestones. The scheduler's defence depends on this staying true."""
+    from record.router import create_woman, WomanRecord, ClinicalEvent
+    from datetime import date
+    wid = create_woman(WomanRecord(
+        name="Selfreport Isolation Test", delivery_date=date(2026, 1, 1),
+        clinical_events=[ClinicalEvent(type="gestational_diabetes", source="manual")],
+    ))["id"]
+    before = client.get(f"/api/record/women/{wid}").json()
+    client.post("/api/record/self-report", json={
+        "woman_id": wid, "type": "issue", "text": "I think my blood pressure is high"})
+    after = client.get(f"/api/record/women/{wid}").json()
+    assert before["clinical_events"] == after["clinical_events"]
+    assert before["milestones"] == after["milestones"]
+
+
+def test_self_report_responses_carry_no_scoring_fields():
+    wid = "selfreport-3"
+    r = client.post("/api/record/self-report", json={"woman_id": wid, "type": "issue", "text": "some issue"})
+    assert not (set(_keys(r.json())) & FORBIDDEN)
+    assert not (set(_keys(client.get(f"/api/record/self-report/{wid}").json())) & FORBIDDEN)
