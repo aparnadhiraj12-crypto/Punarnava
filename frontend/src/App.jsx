@@ -14,6 +14,7 @@ import Handoff from "./routes/clinic/Handoff";
 import Signup from "./routes/public/Signup";
 import Login from "./routes/public/Login";
 import Stub from "./components/Stub";
+import RoleGuard from "./components/RoleGuard";
 import Brand from "./components/Brand";
 import Button from "./components/Button";
 import Icon from "./components/Icon";
