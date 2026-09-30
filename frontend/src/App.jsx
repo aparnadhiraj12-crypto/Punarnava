@@ -11,6 +11,7 @@ import Journal from "./routes/mother/Journal";
 import DangerSigns from "./routes/mother/DangerSigns";
 import Queue from "./routes/asha/Queue";
 import MotherDetail from "./routes/asha/MotherDetail";
+import VisitLog from "./routes/asha/VisitLog";
 import Handoff from "./routes/clinic/Handoff";
 import Signup from "./routes/public/Signup";
 import Login from "./routes/public/Login";
@@ -109,7 +110,14 @@ export default function App() {
             </RoleGuard>
           }
         />
-        <Route path="/a/mother/:id/visit" element={<Stub title="Record visit" />} />
+        <Route
+          path="/a/mother/:id/visit"
+          element={
+            <RoleGuard allowedRoles={["asha"]}>
+              <VisitLog />
+            </RoleGuard>
+          }
+        />
 
         <Route
           path="/d"
