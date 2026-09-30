@@ -1,6 +1,7 @@
 // /m/enrol - manual enrolment (J1). Field names match POST /api/ingestion/manual
 // exactly (guide 2.1). Restyled as a two-step form-card, matching the redesign.
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
@@ -11,6 +12,8 @@ import PixelArt from "../../components/PixelArt";
 import { enrolMother } from "../../lib/api";
 
 export default function Enrol() {
+  const location = useLocation();
+  const role = location.pathname.startsWith("/a/") ? "asha" : "mother";
   const [step, setStep] = useState(1);
   const [f, setF] = useState({
     woman_name: "", delivery_date: "", mode_of_delivery: "normal", discharge_hb: "",
@@ -42,7 +45,7 @@ export default function Enrol() {
 
   if (created) {
     return (
-      <AppShell role="asha">
+      <AppShell role={role}>
         <div className="success-state">
           <PixelArt kind="success" />
           <div className="display display-lg">{created.name} is enrolled.</div>
@@ -57,7 +60,7 @@ export default function Enrol() {
   }
 
   return (
-    <AppShell role="asha">
+    <AppShell role={role}>
       <PageTitle eyebrow={`Step ${step} of 2`} title="Enrol a mother" copy="Add only the information needed to begin a continuity record." />
       <div className="stepper">
         <span className="active" />
