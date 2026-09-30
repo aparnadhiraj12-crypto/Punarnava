@@ -31,12 +31,54 @@ export default function App() {
         <Route path="/principles" element={<Stub title="Principles" />} />
         <Route path="/privacy" element={<Stub title="Privacy" />} />
 
-        <Route path="/m/enrol" element={<Enrol />} />
-        <Route path="/m/wellness" element={<Wellness />} />
-        <Route path="/m/journal" element={<Journal />} />
-        <Route path="/m/help" element={<DangerSigns />} />
-        <Route path="/m" element={<Timeline />} />
-        <Route path="/m/:id" element={<Timeline />} />
+        <Route
+          path="/m/enrol"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Enrol />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/m/wellness"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Wellness />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/m/journal"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Journal />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/m/help"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <DangerSigns />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/m"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Timeline />
+            </RoleGuard>
+          }
+        />
+        <Route
+          path="/m/:id"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Timeline />
+            </RoleGuard>
+          }
+        />
         <Route path="/m/item/:id" element={<Stub title="Milestone detail" />} />
         <Route path="/m/family" element={<Stub title="Family mode" note="FR-D8 - separate, revocable, visibly narrower scope" />} />
         <Route path="/m/consent" element={<Stub title="Consent" note="FR-G1..G4" />} />
