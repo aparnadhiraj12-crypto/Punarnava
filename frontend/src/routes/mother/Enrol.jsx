@@ -14,7 +14,26 @@ import { enrolMother } from "../../lib/api";
 export default function Enrol() {
   const location = useLocation();
   const role = location.pathname.startsWith("/a/") ? "asha" : "mother";
+  const isAsha = role === "asha";
+
   const [step, setStep] = useState(1);
+  const [ashaForm, setAshaForm] = useState({
+    name: "",
+    age: "",
+    village: "",
+    phone: "",
+    language: "te",
+    pregnancy_start_date: "",
+    delivery_date: "",
+    conditions: {
+      gestational_diabetes: false,
+      hypertensive_in_pregnancy: false,
+      significant_blood_loss: false,
+    },
+    medications: "",
+    food_preferences: "",
+    consent: false,
+  });
   const [f, setF] = useState({
     woman_name: "", delivery_date: "", mode_of_delivery: "normal", discharge_hb: "",
     gestational_diabetes: false, on_metformin: false,
@@ -27,20 +46,341 @@ export default function Enrol() {
   const set = (k) => (e) =>
     setF((p) => ({ ...p, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
+  const setAsha = (key) => (e) =>
+    setAshaForm((p) => ({ ...p, [key]: e.target.value }));
+
+  const setAshaCondition = (key) => (e) =>
+    setAshaForm((p) => ({
+      ...p,
+      conditions: { ...p.conditions, [key]: e.target.checked },
+    }));
+
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setError("");
-    const payload = { ...f, woman_name: f.woman_name.trim() };
-    payload.discharge_hb = f.discharge_hb === "" ? null : Number(f.discharge_hb);
+
     try {
+      if (isAsha) {
+        const payload = {
+          woman_name: ashaForm.name.trim(),
+          age: Number(ashaForm.age),
+          village: ashaForm.village.trim(),
+          phone: ashaForm.phone.trim(),
+          language: ashaForm.language,
+          pregnancy_start_date: ashaForm.pregnancy_start_date,
+          delivery_date: ashaForm.delivery_date,
+          gestational_diabetes: ashaForm.conditions.gestational_diabetes,
+          on_metformin: false,
+          hypertensive_in_pregnancy: ashaForm.conditions.hypertensive_in_pregnancy,
+          significant_blood_loss: ashaForm.conditions.significant_blood_loss,
+          medications: ashaForm.medications
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          food_preferences: ashaForm.food_preferences
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          consent: ashaForm.consent,
+          mode_of_delivery: "normal",
+          discharge_hb: null,
+        };
+
+        const res = await enrolMother(payload);
+        setCreated(res.woman);
+        return;
+      }
+
+      const payload = { ...f, woman_name: f.woman_name.trim() };
+      payload.discharge_hb =
+        f.discharge_hb === "" ? null : Number(f.discharge_hb);
+
       const res = await enrolMother(payload);
       setCreated(res.woman);
     } catch {
-      setError("Could not enrol. Check the details and that the backend is running.");
+      setError(
+        "Could not enrol. Check the details and that the backend is running."
+      );
     } finally {
       setBusy(false);
     }
+  }
+
+
+  if (isAsha && !created) {
+    return (
+      <AppShell role="asha">
+        <PageTitle
+          eyebrow={`ASHA enrolment · ${step} of 10`}
+          title={
+            step === 1
+              ? "What is her name?"
+              : step === 2
+                ? "How old is she?"
+                : step === 3
+                  ? "Which village does she live in?"
+                  : step === 4
+                  ? "What is her phone number?"
+                  : step === 5
+                  ? "Which language does she prefer?"
+                  : step === 6
+                  ? "When did her pregnancy start?"
+                  : step === 7
+                  ? "Does she have any of these conditions?"
+                  : step === 8
+                  ? "Is she taking any medicines?"
+                  : step === 9
+                  ? "Does she have any food preferences?"
+                  : "Can we create her care record?"
+          }
+          copy={
+            step === 1
+              ? "Start with the mother's name. You can move through the rest one question at a time."
+              : step === 2
+                ? "Enter her age in completed years."
+                : step === 3
+                  ? "Enter the village or locality where she lives."
+                  : step === 4
+                  ? "Add a phone number if she has one."
+                  : step === 5
+                  ? "Choose the language she is most comfortable using."
+                  : step === 6
+                  ? "Enter the pregnancy start date and estimated due date."
+                  : step === 7
+                  ? "Select anything that applies to her pregnancy or delivery history."
+                  : step === 8
+                  ? "List any current medicines. You can enter more than one."
+                  : step === 9
+                  ? "Add foods she prefers, avoids, or cannot eat."
+                  : "Confirm that she understands and agrees to this record being created."
+          }
+        />
+
+        <div className="stepper">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <span key={i} className={i < step ? "active" : ""} />
+          ))}
+        </div>
+
+        <form
+          className="form-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+
+            if (step === 1 && ashaForm.name.trim()) {
+              setStep(2);
+            } else if (step === 2 && ashaForm.age) {
+              setStep(3);
+            } else if (step === 3 && ashaForm.village.trim()) {
+              setStep(4);
+            } else if (step === 4 && ashaForm.phone.trim()) {
+              setStep(5);
+            } else if (step === 5 && ashaForm.language) {
+              setStep(6);
+            } else if (
+              step === 6 &&
+              ashaForm.pregnancy_start_date &&
+              ashaForm.delivery_date
+            ) {
+              setStep(7);
+            } else if (step === 7) {
+              setStep(8);
+            } else if (step === 8) {
+              setStep(9);
+            } else if (step === 9) {
+              setStep(10);
+            }
+          }}
+        >
+          {step === 1 ? (
+            <Field
+              label="Mother's name"
+              placeholder="Full name"
+              value={ashaForm.name}
+              onChange={setAsha("name")}
+              autoFocus
+              required
+            />
+          ) : step === 2 ? (
+            <Field
+              label="Age"
+              type="number"
+              min="12"
+              max="60"
+              placeholder="Age in years"
+              value={ashaForm.age}
+              onChange={setAsha("age")}
+              autoFocus
+              required
+            />
+          ) : step === 3 ? (
+            <Field
+              label="Village"
+              placeholder="Village or locality"
+              value={ashaForm.village}
+              onChange={setAsha("village")}
+              autoFocus
+              required
+            />
+          ) : step === 4 ? (
+            <Field
+              label="Phone number"
+              type="tel"
+              inputMode="tel"
+              placeholder="10-digit phone number"
+              value={ashaForm.phone}
+              onChange={setAsha("phone")}
+              autoFocus
+              required
+            />
+          ) : step === 5 ? (
+            <SelectField
+              label="Preferred language"
+              value={ashaForm.language}
+              onChange={setAsha("language")}
+              options={[
+                ["te", "Telugu"],
+                ["ml", "Malayalam"],
+                ["pa", "Punjabi"],
+                ["en", "English"],
+              ]}
+            />
+          ) : step === 6 ? (
+            <>
+              <Field
+                label="Pregnancy start date"
+                type="date"
+                value={ashaForm.pregnancy_start_date}
+                onChange={setAsha("pregnancy_start_date")}
+                autoFocus
+                required
+              />
+
+              <Field
+                label="Estimated due date"
+                type="date"
+                value={ashaForm.delivery_date}
+                onChange={setAsha("delivery_date")}
+                required
+              />
+            </>
+          ) : step === 7 ? (
+            <fieldset className="field-group">
+              <legend>Conditions</legend>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={ashaForm.conditions.gestational_diabetes}
+                  onChange={setAshaCondition("gestational_diabetes")}
+                />
+                <span>Gestational diabetes</span>
+              </label>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={ashaForm.conditions.hypertensive_in_pregnancy}
+                  onChange={setAshaCondition("hypertensive_in_pregnancy")}
+                />
+                <span>High blood pressure during pregnancy</span>
+              </label>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={ashaForm.conditions.significant_blood_loss}
+                  onChange={setAshaCondition("significant_blood_loss")}
+                />
+                <span>Significant blood loss</span>
+              </label>
+
+              <p className="field-help">
+                Leave everything unchecked if none apply.
+              </p>
+            </fieldset>
+          ) : step === 8 ? (
+            <Field
+              label="Medicines"
+              placeholder="e.g. Iron tablets, calcium"
+              value={ashaForm.medications}
+              onChange={setAsha("medications")}
+              autoFocus
+            />
+          ) : step === 9 ? (
+            <Field
+              label="Food preferences"
+              placeholder="e.g. vegetarian, avoids spicy food"
+              value={ashaForm.food_preferences}
+              onChange={setAsha("food_preferences")}
+              autoFocus
+            />
+          ) : (
+            <>
+              <fieldset className="field-group">
+                <legend>Consent</legend>
+
+                <label className="check-row">
+                  <input
+                    type="checkbox"
+                    checked={ashaForm.consent}
+                    onChange={(e) =>
+                      setAshaForm((p) => ({
+                        ...p,
+                        consent: e.target.checked,
+                      }))
+                    }
+                    required
+                  />
+                  <span>
+                    The mother understands and agrees to creating this
+                    continuity record.
+                  </span>
+                </label>
+              </fieldset>
+
+              {error && (
+                <p role="alert" className="form-error">
+                  {error}
+                </p>
+              )}
+
+              <div className="button-row">
+                <Button
+                  type="button"
+                  tone="secondary"
+                  onClick={() => setStep(9)}
+                >
+                  Back
+                </Button>
+
+                <Button type="submit" disabled={busy || !ashaForm.consent}>
+                  {busy ? "Saving…" : "Create record"}{" "}
+                  <Icon name="check" />
+                </Button>
+              </div>
+            </>
+          )}
+
+          <div className="button-row">
+            {step > 1 && (
+              <Button
+                type="button"
+                tone="secondary"
+                onClick={() => setStep(step - 1)}
+              >
+                Back
+              </Button>
+            )}
+
+            <Button type="submit">
+              Continue <Icon name="arrow" />
+            </Button>
+          </div>
+        </form>
+      </AppShell>
+    );
   }
 
   if (created) {
