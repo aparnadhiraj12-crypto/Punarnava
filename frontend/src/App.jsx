@@ -94,6 +94,30 @@ export default function App() {
         <Route path="/a/mother/:id" element={<Stub title="ASHA - mother detail" />} />
         <Route path="/a/mother/:id/visit" element={<Stub title="Record visit" />} />
 
+        <Route
+          path="/d"
+          element={
+            <RoleGuard allowedRoles={["doctor"]}>
+              <Stub
+                title="Doctor"
+                note="Doctor search and mother records will be implemented next."
+              />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/f"
+          element={
+            <RoleGuard allowedRoles={["family"]}>
+              <Stub
+                title="Family view"
+                note="Family sharing will be implemented later."
+              />
+            </RoleGuard>
+          }
+        />
+
         <Route path="/c/handoff/:id" element={<Handoff />} />
         <Route path="/c/recall" element={<Stub title="Recall campaign" note="J5 - v1" />} />
         <Route path="/s/:token" element={<Handoff />} />
