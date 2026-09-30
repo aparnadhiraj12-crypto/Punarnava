@@ -14,16 +14,28 @@ const EVENTS = {
 
 export const milestoneLabel = (type) => MILESTONES[type] ?? humanize(type);
 export const eventLabel = (type) => EVENTS[type] ?? humanize(type);
+export const humanizeId = humanize;
 
 // state is exactly: due | done | pending | missed | not_applicable
+// tone  -> <Badge tone>   (sage | terra | mustard | ink)
+// css   -> class suffix used by the timeline / preview / summary dots
+// Every state also carries a text label, so colour is never the only signal (NFR-13).
 const STATES = {
-  due:            { label: "Due",            card: "pixel-card-due",       stamp: "due" },
-  done:           { label: "Completed",      card: "pixel-card-completed", stamp: "completed" },
-  pending:        { label: "Upcoming",       card: "pixel-card",           stamp: "upcoming" },
-  missed:         { label: "Overdue",        card: "pixel-card-overdue",   stamp: "overdue" },
-  not_applicable: { label: "Not applicable", card: "pixel-card",           stamp: null },
+  due:            { label: "Due",            tone: "mustard", css: "due" },
+  done:           { label: "Completed",      tone: "sage",    css: "complete" },
+  pending:        { label: "Upcoming",       tone: "mustard", css: "upcoming" },
+  missed:         { label: "Overdue",        tone: "terra",   css: "overdue" },
+  not_applicable: { label: "Not applicable", tone: "ink",     css: "na" },
 };
 
 export const stateLabel = (s) => STATES[s]?.label ?? humanize(s);
-export const stateCardClass = (s) => STATES[s]?.card ?? "pixel-card";
-export const stateStampStatus = (s) => STATES[s]?.stamp ?? null;
+export const stateTone = (s) => STATES[s]?.tone ?? "sage";
+export const stateClass = (s) => STATES[s]?.css ?? "upcoming";
+
+// "Overdue by 4 days" for a missed milestone, otherwise the plain state label.
+export function stateText(m) {
+  if (m.state === "missed" && m.days_overdue) {
+    return `Overdue by ${m.days_overdue} day${m.days_overdue === 1 ? "" : "s"}`;
+  }
+  return stateLabel(m.state);
+}
