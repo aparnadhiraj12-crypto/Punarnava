@@ -12,6 +12,8 @@ import DangerSigns from "./routes/mother/DangerSigns";
 import Queue from "./routes/asha/Queue";
 import MotherDetail from "./routes/asha/MotherDetail";
 import VisitLog from "./routes/asha/VisitLog";
+import DoctorDashboard from "./routes/doctor/Dashboard";
+import MotherRecord from "./routes/doctor/MotherRecord";
 import Handoff from "./routes/clinic/Handoff";
 import Signup from "./routes/public/Signup";
 import Login from "./routes/public/Login";
@@ -123,10 +125,16 @@ export default function App() {
           path="/d"
           element={
             <RoleGuard allowedRoles={["doctor"]}>
-              <Stub
-                title="Doctor"
-                note="Doctor search and mother records will be implemented next."
-              />
+              <DoctorDashboard />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/d/mother/:uid"
+          element={
+            <RoleGuard allowedRoles={["doctor"]}>
+              <MotherRecord />
             </RoleGuard>
           }
         />
