@@ -41,6 +41,14 @@ export default function App() {
           }
         />
         <Route
+          path="/a/enrol"
+          element={
+            <RoleGuard allowedRoles={["asha"]}>
+              <Enrol />
+            </RoleGuard>
+          }
+        />
+        <Route
           path="/m/wellness"
           element={
             <RoleGuard allowedRoles={["mother"]}>
