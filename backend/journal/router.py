@@ -18,12 +18,11 @@ mood_emoji is restricted to a fixed set so the field stays a label, not
 free text. The set is written as unicode escapes so this file stays
 plain ASCII (PowerShell can mangle pasted emoji).
 
-Still stubbed: in-memory only (resets on restart), and entries are not
-yet scoped to the logged-in user via the auth token -- anyone who knows a
-woman_id can read her entries. Wire get_current_user() from auth.router
-in before this holds real data.
+Still stubbed: in-memory only (resets on restart). Both routes require
+a token belonging to the mother whose woman_id it is (require_self).
 """
 from fastapi import APIRouter, HTTPException
+from auth.router import require_self
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -51,7 +50,8 @@ class JournalEntryRequest(BaseModel):
 
 
 @router.post("/entry")
-def add_entry(req: JournalEntryRequest):
+def add_entry(req: JournalEntryRequest, token: str):
+    require_self(token, req.woman_id)
     if req.mood_emoji not in ALLOWED_MOODS:
         raise HTTPException(400, "mood_emoji must be one of the supported set")
     entry = {
@@ -65,8 +65,9 @@ def add_entry(req: JournalEntryRequest):
 
 
 @router.get("/{woman_id}")
-def list_entries(woman_id: str):
+def list_entries(woman_id: str, token: str):
     """Newest first, so her latest entry is at the top. No filtering,
     counting or summarising on purpose."""
+    require_self(token, woman_id)
     entries = list(reversed(_ENTRIES.get(woman_id, [])))
     return {"entries": entries}

@@ -30,11 +30,11 @@ product, not just this feature. So:
     entries, which are clinician-entered and transcribed, never her own
     words. Keep the two distinct; do not merge them.
 
-Still stubbed: in-memory only, resets on restart. No auth check yet, same
-caveat as journal.router -- wire in auth.router.get_current_user before
-this holds real data.
+Still stubbed: in-memory only, resets on restart. Both routes require a
+token belonging to the mother whose woman_id it is (require_self).
 """
 from fastapi import APIRouter, HTTPException
+from auth.router import require_self
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, datetime, timezone
@@ -62,7 +62,8 @@ class SelfReportRequest(BaseModel):
 
 
 @router.post("/self-report")
-def add_entry(req: SelfReportRequest):
+def add_entry(req: SelfReportRequest, token: str):
+    require_self(token, req.woman_id)
     if req.type not in TYPES:
         raise HTTPException(400, f"type must be one of {TYPES}")
     if not req.text.strip():
@@ -82,6 +83,7 @@ def add_entry(req: SelfReportRequest):
 
 
 @router.get("/self-report/{woman_id}")
-def list_entries(woman_id: str):
+def list_entries(woman_id: str, token: str):
+    require_self(token, woman_id)
     entries = list(reversed(_ENTRIES.get(woman_id, [])))
     return {"entries": entries}

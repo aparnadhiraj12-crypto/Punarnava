@@ -8,13 +8,11 @@ she reports taking. Same separation principle as clinical_events vs
 self-reported issues: a clinician wrote this down, so it is transcribed
 and shown, never inferred or generated.
 
-Not wired to auth yet -- caller_role is accepted as a plain field for now
-so the frontend can build against the real shape; swap it for
-auth.router.get_current_user(token) once the frontend sends tokens on
-every request. Do not remove the caller_role check when that happens --
-tighten it, don't drop it.
+Adding an entry requires a token whose role is "clinic" (require_role).
+Reading entries is not gated yet.
 """
 from fastapi import APIRouter, HTTPException
+from auth.router import require_role
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -31,13 +29,11 @@ class PrescribedMedicationRequest(BaseModel):
     dosage: Optional[str] = None
     instructions: Optional[str] = None
     prescribed_by: str
-    caller_role: str = "clinic"
 
 
 @router.post("/medication")
-def add_prescribed_medication(req: PrescribedMedicationRequest):
-    if req.caller_role != "clinic":
-        raise HTTPException(403, "only a clinic account can add a prescribed medication entry")
+def add_prescribed_medication(req: PrescribedMedicationRequest, token: str):
+    require_role(token, {"clinic"})
     if not req.medication_name.strip():
         raise HTTPException(400, "medication_name cannot be empty")
 

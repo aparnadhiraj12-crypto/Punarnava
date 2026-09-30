@@ -21,6 +21,7 @@ that is a product decision requiring a new, clearly-named grant scope --
 never a default expansion of this one.
 """
 from fastapi import APIRouter, HTTPException
+from auth.router import require_self
 from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
@@ -42,7 +43,8 @@ class GrantRequest(BaseModel):
 
 
 @router.post("/grant")
-def create_grant(req: GrantRequest):
+def create_grant(req: GrantRequest, token: str):
+    require_self(token, req.woman_id)
     if req.woman_id not in _WOMEN:
         raise HTTPException(404, "woman not found")
     grant_id = str(uuid.uuid4())
