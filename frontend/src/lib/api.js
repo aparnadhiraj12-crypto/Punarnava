@@ -64,3 +64,12 @@ export const getJournal = (womanId) => send("GET", `/journal/${encodeURIComponen
 
 // No arguments about symptoms or the woman, on purpose.
 export const getDangerSigns = (language = "en") => send("GET", `/safety/danger-signs?language=${language}`);
+
+export const grantFamilyAccess = (payload) =>
+  send("POST", "/family/grant", payload);
+
+export const revokeFamilyAccess = (grantId) =>
+  send("POST", `/family/grant/${encodeURIComponent(grantId)}/revoke`);
+
+export const getFamilySharedView = (womanId) =>
+  send("GET", `/family/shared-view/${encodeURIComponent(womanId)}`);

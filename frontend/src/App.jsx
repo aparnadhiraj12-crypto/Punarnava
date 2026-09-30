@@ -9,6 +9,7 @@ import Enrol from "./routes/mother/Enrol";
 import Wellness from "./routes/mother/Wellness";
 import Diet from "./routes/mother/Diet";
 import Move from "./routes/mother/Move";
+import Family from "./routes/mother/Family";
 import Journal from "./routes/mother/Journal";
 import Mind from "./routes/mother/mind/Mind";
 import Support from "./routes/mother/mind/Support";
@@ -142,7 +143,14 @@ export default function App() {
           }
         />
         <Route path="/m/item/:id" element={<Stub title="Milestone detail" />} />
-        <Route path="/m/family" element={<Stub title="Family mode" note="FR-D8 - separate, revocable, visibly narrower scope" />} />
+        <Route
+          path="/m/family"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Family />
+            </RoleGuard>
+          }
+        />
         <Route path="/m/consent" element={<Stub title="Consent" note="FR-G1..G4" />} />
 
         <Route
