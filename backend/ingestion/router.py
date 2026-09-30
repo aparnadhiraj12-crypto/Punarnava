@@ -27,6 +27,13 @@ router = APIRouter()
 class ManualEntry(BaseModel):
     """~15 fields, the FR-A8 manual fallback."""
     woman_name: str
+    age: Optional[int] = None
+    village: Optional[str] = None
+    phone: Optional[str] = None
+    pregnancy_start_date: Optional[date] = None
+    medications: list[str] = []
+    food_preferences: list[str] = []
+    consent: bool = False
     delivery_date: date
     mode_of_delivery: str  # "LSCS" | "normal" | "assisted"
     discharge_hb: Optional[float] = Field(None, description="g/dL")
@@ -52,9 +59,16 @@ def submit_manual_entry(entry: ManualEntry):
 
     record = WomanRecord(
         name=entry.woman_name,
+        age=entry.age,
+        village=entry.village,
+        phone=entry.phone,
         language=entry.language,
+        pregnancy_start_date=entry.pregnancy_start_date,
         delivery_date=entry.delivery_date,
         mode_of_delivery=entry.mode_of_delivery,
+        medications=entry.medications,
+        food_preferences=entry.food_preferences,
+        consent=entry.consent,
         clinical_events=events,
         discharge_hb=entry.discharge_hb,
         incomplete=False,
