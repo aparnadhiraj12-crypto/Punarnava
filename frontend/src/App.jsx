@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Timeline from "./routes/mother/Timeline";
 import Enrol from "./routes/mother/Enrol";
 import Wellness from "./routes/mother/Wellness";
+import Diet from "./routes/mother/Diet";
 import Journal from "./routes/mother/Journal";
 import DangerSigns from "./routes/mother/DangerSigns";
 import Queue from "./routes/asha/Queue";
@@ -57,6 +58,15 @@ export default function App() {
           element={
             <RoleGuard allowedRoles={["mother"]}>
               <Wellness />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/m/diet"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Diet />
             </RoleGuard>
           }
         />
