@@ -83,7 +83,14 @@ export default function App() {
         <Route path="/m/family" element={<Stub title="Family mode" note="FR-D8 - separate, revocable, visibly narrower scope" />} />
         <Route path="/m/consent" element={<Stub title="Consent" note="FR-G1..G4" />} />
 
-        <Route path="/a" element={<Queue />} />
+        <Route
+          path="/a"
+          element={
+            <RoleGuard allowedRoles={["asha"]}>
+              <Queue />
+            </RoleGuard>
+          }
+        />
         <Route path="/a/mother/:id" element={<Stub title="ASHA - mother detail" />} />
         <Route path="/a/mother/:id/visit" element={<Stub title="Record visit" />} />
 
