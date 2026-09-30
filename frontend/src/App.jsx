@@ -9,6 +9,8 @@ import Enrol from "./routes/mother/Enrol";
 import Wellness from "./routes/mother/Wellness";
 import Diet from "./routes/mother/Diet";
 import Journal from "./routes/mother/Journal";
+import Mind from "./routes/mother/mind/Mind";
+import Support from "./routes/mother/mind/Support";
 import DangerSigns from "./routes/mother/DangerSigns";
 import Queue from "./routes/asha/Queue";
 import MotherDetail from "./routes/asha/MotherDetail";
@@ -75,6 +77,33 @@ export default function App() {
           element={
             <RoleGuard allowedRoles={["mother"]}>
               <Journal />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/m/mind"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Mind />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/m/mind/journal"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Journal />
+            </RoleGuard>
+          }
+        />
+
+        <Route
+          path="/m/mind/support"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Support />
             </RoleGuard>
           }
         />
