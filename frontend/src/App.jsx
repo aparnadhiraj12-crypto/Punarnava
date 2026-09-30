@@ -8,6 +8,7 @@ import Timeline from "./routes/mother/Timeline";
 import Enrol from "./routes/mother/Enrol";
 import Wellness from "./routes/mother/Wellness";
 import Diet from "./routes/mother/Diet";
+import Move from "./routes/mother/Move";
 import Journal from "./routes/mother/Journal";
 import Mind from "./routes/mother/mind/Mind";
 import Support from "./routes/mother/mind/Support";
@@ -72,6 +73,15 @@ export default function App() {
             </RoleGuard>
           }
         />
+        <Route
+          path="/m/move"
+          element={
+            <RoleGuard allowedRoles={["mother"]}>
+              <Move />
+            </RoleGuard>
+          }
+        />
+
         <Route
           path="/m/journal"
           element={
