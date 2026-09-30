@@ -40,5 +40,21 @@ export function currentWomanId() {
 
 // After signup / login: mother -> own timeline, asha -> /a, clinic -> /a (no clinic home yet).
 export function homeFor(role, linkedId) {
-  return role === "mother" && linkedId ? `/m/${linkedId}` : "/a";
+  if (role === "mother") {
+    return linkedId ? `/m/${linkedId}` : "/m";
+  }
+
+  if (role === "asha") {
+    return "/a";
+  }
+
+  if (role === "doctor") {
+    return "/d";
+  }
+
+  if (role === "family") {
+    return "/f";
+  }
+
+  return "/login";
 }
