@@ -14,7 +14,7 @@ normalisation / validation / confirmation-queue generation for photo/PDF
 intake (FR-A1..A7, FR-A9, FR-A10). Depth over breadth was always the v0
 call here (TRD C1) — tonight's demo uses the manual path only, honestly.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
@@ -34,8 +34,10 @@ class ManualEntry(BaseModel):
     medications: list[str] = []
     food_preferences: list[str] = []
     consent: bool = False
-    delivery_date: date
-    mode_of_delivery: str  # "LSCS" | "normal" | "assisted"
+    delivery_date: Optional[date] = None  # leave empty if she has not delivered yet
+    mode_of_delivery: str = "pending"  # "LSCS" | "normal" | "assisted" | "pending"
+    lmp: Optional[date] = None  # last menstrual period, as the ASHA was told
+    edd: Optional[date] = None  # expected delivery date, as the ASHA was told
     discharge_hb: Optional[float] = Field(None, description="g/dL")
     gestational_diabetes: bool = False
     on_metformin: bool = False
@@ -57,6 +59,10 @@ def submit_manual_entry(entry: ManualEntry):
     if entry.significant_blood_loss:
         events.append(ClinicalEvent(type="significant_blood_loss", source="manual"))
 
+    effective_delivery = entry.delivery_date or entry.edd
+    if effective_delivery is None:
+        raise HTTPException(422, "give either delivery_date or edd (expected delivery date)")
+
     record = WomanRecord(
         name=entry.woman_name,
         age=entry.age,
@@ -64,7 +70,9 @@ def submit_manual_entry(entry: ManualEntry):
         phone=entry.phone,
         language=entry.language,
         pregnancy_start_date=entry.pregnancy_start_date,
-        delivery_date=entry.delivery_date,
+        delivery_date=effective_delivery,
+        lmp=entry.lmp,
+        edd=entry.edd,
         mode_of_delivery=entry.mode_of_delivery,
         medications=entry.medications,
         food_preferences=entry.food_preferences,

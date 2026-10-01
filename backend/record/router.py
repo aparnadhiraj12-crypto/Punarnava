@@ -101,6 +101,10 @@ class WomanRecord(BaseModel):
     clinical_events: list[ClinicalEvent] = []
     discharge_hb: Optional[float] = None
     incomplete: bool = False  # FR-B6: mark incomplete, never reject
+    lmp: Optional[date] = None  # last menstrual period, entered as told (never inferred)
+    edd: Optional[date] = None  # expected delivery date, entered as told
+    trimester: Optional[int] = None  # computed on read from lmp, never stored
+    mother_code: Optional[str] = None  # short unique ID a clinic uses to look her up
 
 
 def create_woman(record: WomanRecord, fixed_id: str | None = None) -> dict:
@@ -108,6 +112,14 @@ def create_woman(record: WomanRecord, fixed_id: str | None = None) -> dict:
     calls this directly -- see ingestion/router.py). fixed_id lets startup
     seeding create a stable, demo-friendly ID."""
     record.id = fixed_id or str(uuid.uuid4())
+    if not record.mother_code:
+        import secrets
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        while True:
+            code = "PN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+            if not any(w.get("mother_code") == code for w in _WOMEN.values()):
+                record.mother_code = code
+                break
     _WOMEN[record.id] = record.model_dump(mode="json")
     return _WOMEN[record.id]
 
@@ -118,6 +130,10 @@ def _with_milestones(rec: dict) -> dict:
     every read, so a corrected record always recomputes correctly (FR-C7)."""
     rec = dict(rec)
     rec["postpartum_day"] = (date.today() - date.fromisoformat(rec["delivery_date"])).days
+    rec["trimester"] = None
+    if rec.get("lmp") and rec["postpartum_day"] < 0:
+        weeks = (date.today() - date.fromisoformat(rec["lmp"])).days // 7
+        rec["trimester"] = 1 if weeks < 14 else (2 if weeks < 28 else 3)
     events = [e["type"] for e in rec["clinical_events"]]
     milestones = generate_milestones(date.fromisoformat(rec["delivery_date"]), events)
     overrides = _COMPLETIONS.get(rec["id"], {})
@@ -153,6 +169,17 @@ def get_woman_record(woman_id: str):
     if woman_id not in _WOMEN:
         raise HTTPException(404, "not found")
     return _with_milestones(_WOMEN[woman_id])
+
+
+@router.get("/lookup/{code}")
+def lookup_by_code(code: str, token: str):
+    """Clinic-only: find a mother by her short unique ID."""
+    from auth.router import require_role  # local import avoids a circular import
+    require_role(token, {"clinic"})
+    for rec in _WOMEN.values():
+        if rec.get("mother_code") == code.strip().upper():
+            return _with_milestones(rec)
+    raise HTTPException(404, "no mother with that ID")
 
 
 @router.get("/women")

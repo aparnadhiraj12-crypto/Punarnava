@@ -5,7 +5,7 @@ import Badge from "../../components/Badge";
 import { Loading, Unreachable, EmptyState } from "../../components/Page";
 import { getSession } from "../../lib/session";
 import {
-  getFamilySharedView,
+  getFamilyGrants,
   grantFamilyAccess,
   revokeFamilyAccess,
 } from "../../lib/api";
@@ -63,7 +63,7 @@ export default function Family() {
     setFailed(false);
 
     try {
-      const data = await getFamilySharedView(linkedId);
+      const data = await getFamilyGrants(linkedId);
       setSharedView(data);
     } catch {
       setFailed(true);

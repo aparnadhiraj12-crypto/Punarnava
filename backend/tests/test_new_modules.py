@@ -402,14 +402,14 @@ def test_family_grant_revocation_blocks_access():
     tok, wid = _mother()
     grant = client.post("/api/family/grant", params={"token": tok}, json={"woman_id": wid, "grantee_name": "husband"}).json()
     assert client.get(f"/api/family/shared-view/{grant['id']}").status_code == 200
-    client.post(f"/api/family/grant/{grant['id']}/revoke")
+    client.post(f"/api/family/grant/{grant['id']}/revoke", params={"token": tok})
     assert client.get(f"/api/family/shared-view/{grant['id']}").status_code == 403
 
 
 def test_she_can_see_her_own_grant_list():
     tok, wid = _mother()
     client.post("/api/family/grant", params={"token": tok}, json={"woman_id": wid, "grantee_name": "husband"})
-    grants = client.get(f"/api/family/grants/{wid}").json()["grants"]
+    grants = client.get(f"/api/family/grants/{wid}", params={"token": tok}).json()["grants"]
     assert len(grants) == 1 and grants[0]["grantee_name"] == "husband"
 
 
@@ -419,7 +419,9 @@ def test_family_grant_requires_her_own_token():
     body = {"woman_id": wid_a, "grantee_name": "husband"}
     assert client.post("/api/family/grant", params={"token": "bogus"}, json=body).status_code == 401
     assert client.post("/api/family/grant", params={"token": tok_b}, json=body).status_code == 403
-    assert client.get(f"/api/family/grants/{wid_a}").json()["grants"] == []
+    assert client.get(f"/api/family/grants/{wid_a}", params={"token": tok_a}).json()["grants"] == []
+    assert client.get(f"/api/family/grants/{wid_a}", params={"token": tok_b}).status_code == 403
+    assert client.get(f"/api/family/grants/{wid_a}", params={"token": "bogus"}).status_code == 401
     assert client.post("/api/family/grant", params={"token": tok_a}, json=body).status_code == 200
 
 
@@ -442,3 +444,84 @@ def test_report_is_present_but_never_scores():
 
 def test_report_404_for_unknown_woman():
     assert client.get("/api/report/does-not-exist").status_code == 404
+
+
+# ---- clinic lookup by unique mother code ----
+
+def test_clinic_can_look_up_mother_by_code():
+    tok, wid = _mother()
+    clinic = _clinic_token()
+    code = client.get(f"/api/record/women/{wid}").json()["mother_code"]
+    assert code.startswith("PN-")
+    ok = client.get(f"/api/record/lookup/{code}", params={"token": clinic})
+    assert ok.status_code == 200 and ok.json()["id"] == wid
+    assert client.get(f"/api/record/lookup/{code}", params={"token": tok}).status_code == 403
+    assert client.get(f"/api/record/lookup/{code}", params={"token": "bogus"}).status_code == 401
+    assert client.get("/api/record/lookup/PN-NOPE00", params={"token": clinic}).status_code == 404
+
+
+def test_second_trimester_diet_content_exists():
+    items = client.get("/api/wellness/content", params={"stage": "pregnancy_t2"}).json()["content"]
+    assert len(items) >= 1 and all(i["source_citation"] for i in items)
+
+
+# ---- pregnancy enrolment, pregnancy exercise content, father's view ----
+
+def test_manual_entry_accepts_pregnancy_dates_without_delivery():
+    from datetime import date, timedelta
+    r = client.post("/api/ingestion/manual", json={
+        "woman_name": "Pregnant Test",
+        "lmp": str(date.today() - timedelta(days=150)),
+        "edd": str(date.today() + timedelta(days=130)),
+    })
+    assert r.status_code == 200
+    wid = r.json()["woman"]["id"]
+    rec = client.get(f"/api/record/women/{wid}").json()
+    assert rec["trimester"] == 2 and rec["postpartum_day"] < 0
+    assert rec["mother_code"].startswith("PN-")
+
+
+def test_manual_entry_needs_some_date():
+    r = client.post("/api/ingestion/manual", json={"woman_name": "No Date"})
+    assert r.status_code == 422
+
+
+def test_pregnancy_exercise_content_for_each_trimester():
+    for n in (1, 2, 3):
+        items = client.get("/api/wellness/content", params={"stage": "pregnancy_t" + str(n)}).json()["content"]
+        assert any(i["type"] == "exercise" for i in items)
+
+
+def test_family_shared_view_has_diet_and_classes_but_no_journal():
+    from datetime import date
+    tok, wid = _signup("mother", delivery_date=str(date.today()))
+    client.post("/api/journal/entry", params={"token": tok}, json={"woman_id": wid, "mood_emoji": "\U0001F622", "note": "secret thoughts"})
+    grant = client.post("/api/family/grant", params={"token": tok}, json={"woman_id": wid, "grantee_name": "husband"}).json()
+    view = client.get("/api/family/shared-view/" + grant["id"]).json()
+    assert view["stage"] == "postpartum_early"
+    assert len(view["diet"]) >= 1 and "exercise" in view and "classes" in view
+    assert "secret thoughts" not in str(view)
+
+
+# ---- family grants: phone + scope she chooses ----
+
+def test_grant_with_phone_and_scope():
+    from datetime import date
+    tok, wid = _signup("mother", delivery_date=str(date.today()))
+    g = client.post("/api/family/grant", params={"token": tok}, json={"woman_id": wid, "phone": "9876543210", "scope": ["diet"]})
+    assert g.status_code == 200 and g.json()["grantee_name"] == "9876543210"
+    view = client.get("/api/family/shared-view/" + g.json()["id"]).json()
+    assert len(view["diet"]) >= 1
+    assert view["classes"] == [] and view["exercise"] == [] and view["self_reported"] == []
+
+
+def test_grant_needs_a_name_or_phone():
+    tok, wid = _mother()
+    r = client.post("/api/family/grant", params={"token": tok}, json={"woman_id": wid})
+    assert r.status_code == 422
+
+
+def test_later_postpartum_stages_have_diet_content():
+    for stage in ("postpartum_early", "postpartum_six_week", "postpartum_long"):
+        items = client.get("/api/wellness/content", params={"stage": stage}).json()["content"]
+        assert any(i["type"] == "diet" for i in items), stage

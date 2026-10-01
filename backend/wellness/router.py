@@ -194,6 +194,16 @@ _CONTENT: list[dict] = [
         source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
     ).model_dump(),
     WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t2", region="general",
+        title="Second trimester -- steady, balanced meals",
+        body="Regular meals with pulses, vegetables, fruit and grains help meet the extra energy "
+             "needs of the middle months.",
+        avoid_notes="Unpasteurised dairy and undercooked meat or eggs are best avoided.",
+        nutrients=Nutrients(calories=300, protein_g=10, fiber_g=4, iron_mg=4, calcium_mg=150).model_dump(),
+        taste_tags=["vegetarian"],
+        source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
         id=str(uuid.uuid4()), type="exercise", subtype="pelvic_floor", stage="postpartum_six_week",
         region="general", title="Pelvic floor basics",
         body="Gentle Kegel exercises, a few times a day, once cleared at your six-week review.",
@@ -219,6 +229,47 @@ _CONTENT: list[dict] = [
         body="Once cleared and comfortable with walking and pelvic floor work, a gradual return "
              "to light resistance training is generally appropriate for most women.",
         source_citation="VERIFY -- FOGSI postpartum activity guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="postpartum_six_week", region="general",
+        title="Weeks 6 to 26 -- steady, balanced meals",
+        body="Regular meals with pulses, vegetables, fruit, grains and enough fluids. If you are "
+             "breastfeeding, you may feel hungrier than usual and need extra fluids.",
+        avoid_notes="Very little to avoid for most women; ask your doctor if unsure.",
+        nutrients=Nutrients(calories=300, protein_g=10, fiber_g=4, iron_mg=4, calcium_mg=150).model_dump(),
+        taste_tags=["vegetarian"],
+        source_citation="VERIFY -- national postpartum nutrition guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="postpartum_long", region="general",
+        title="After six months -- everyday balanced eating",
+        body="A varied plate with pulses, vegetables, fruit, grains and dairy or a calcium-rich "
+             "alternative supports recovery and energy in the longer term.",
+        avoid_notes="Ask your doctor if you are unsure about any food.",
+        nutrients=Nutrients(calories=250, protein_g=8, fiber_g=4, iron_mg=3, calcium_mg=120).model_dump(),
+        taste_tags=["vegetarian"],
+        source_citation="VERIFY -- national postpartum nutrition guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="exercise", subtype="walking", stage="pregnancy_t1",
+        region="general", title="First trimester -- gentle walking",
+        body="Easy walking at a comfortable pace is a common way to stay active early in pregnancy. "
+             "Check with your doctor before starting any new exercise.",
+        source_citation="VERIFY -- national antenatal activity guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="exercise", subtype="pilates", stage="pregnancy_t2",
+        region="general", title="Second trimester -- prenatal yoga or pilates",
+        body="Look for classes specifically labelled prenatal and tell the instructor you are "
+             "pregnant. Check with your doctor before joining.",
+        source_citation="VERIFY -- national antenatal activity guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="exercise", subtype="walking", stage="pregnancy_t3",
+        region="general", title="Third trimester -- gentle movement",
+        body="Short walks, prenatal stretching and breathing exercises at an easy pace. Slow down "
+             "or stop if something feels wrong, and check with your doctor.",
+        source_citation="VERIFY -- national antenatal activity guidance (draft placeholder)",
     ).model_dump(),
 ]
 

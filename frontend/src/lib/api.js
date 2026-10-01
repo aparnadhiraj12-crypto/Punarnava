@@ -2,8 +2,16 @@
 // FRONTEND guide section 2 exactly; do not rename them.
 export const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
 
+// The backend reads the login token from the ?token= query string.
+function withToken(path) {
+  let token = null;
+  try { token = localStorage.getItem("punarnava_token"); } catch { /* ignore */ }
+  if (!token) return path;
+  return path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+}
+
 async function send(method, path, body) {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE}${withToken(path)}`, {
     method,
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -73,3 +81,6 @@ export const revokeFamilyAccess = (grantId) =>
 
 export const getFamilySharedView = (womanId) =>
   send("GET", `/family/shared-view/${encodeURIComponent(womanId)}`);
+
+export const getFamilyGrants = (womanId) =>
+  send("GET", `/family/grants/${encodeURIComponent(womanId)}`);
