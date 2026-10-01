@@ -471,13 +471,13 @@ def test_manual_entry_accepts_pregnancy_dates_without_delivery():
     from datetime import date, timedelta
     r = client.post("/api/ingestion/manual", json={
         "woman_name": "Pregnant Test",
-        "lmp": str(date.today() - timedelta(days=150)),
-        "edd": str(date.today() + timedelta(days=130)),
+        "pregnancy_start_date": str(date.today() - timedelta(days=150)),
+        "estimated_due_date": str(date.today() + timedelta(days=130)),
     })
     assert r.status_code == 200
     wid = r.json()["woman"]["id"]
     rec = client.get(f"/api/record/women/{wid}").json()
-    assert rec["trimester"] == 2 and rec["postpartum_day"] < 0
+    assert rec["trimester"] == 2 and rec["postpartum_day"] is None and rec["delivery_date"] is None
     assert rec["mother_code"].startswith("PN-")
 
 
@@ -525,3 +525,70 @@ def test_later_postpartum_stages_have_diet_content():
     for stage in ("postpartum_early", "postpartum_six_week", "postpartum_long"):
         items = client.get("/api/wellness/content", params={"stage": stage}).json()["content"]
         assert any(i["type"] == "diet" for i in items), stage
+
+
+# ---- ASHA enrolment contract, doctor role, scheduler GET ----
+
+def test_enrol_full_asha_payload():
+    from datetime import date, timedelta
+    payload = {
+        "woman_name": "Lakshmi", "age": 26, "village": "Example Village", "phone": "9876543210",
+        "language": "te",
+        "pregnancy_start_date": str(date.today() - timedelta(days=150)),
+        "estimated_due_date": str(date.today() + timedelta(days=130)),
+        "medications": ["iron tablets", "calcium"], "food_preferences": ["vegetarian"], "consent": True,
+    }
+    r = client.post("/api/ingestion/manual", json=payload)
+    assert r.status_code == 200
+    w = r.json()["woman"]
+    assert w["id"] and w["age"] == 26 and w["village"] == "Example Village" and w["phone"] == "9876543210"
+    assert w["delivery_date"] is None and w["estimated_due_date"] == payload["estimated_due_date"]
+    assert w["medications"] == ["iron tablets", "calcium"] and w["food_preferences"] == ["vegetarian"]
+    assert w["consent"] is True
+    rec = client.get("/api/record/women/" + w["id"]).json()
+    assert rec["milestones"] == [] and rec["trimester"] == 2
+
+
+def test_enrol_refuses_when_consent_is_false():
+    from datetime import date, timedelta
+    r = client.post("/api/ingestion/manual", json={
+        "woman_name": "No Consent", "consent": False,
+        "estimated_due_date": str(date.today() + timedelta(days=100)),
+    })
+    assert r.status_code == 422
+
+
+def test_enrol_retry_with_same_client_id_does_not_duplicate():
+    import uuid
+    from datetime import date, timedelta
+    body = {"woman_name": "Retry Test", "client_id": "offline-" + uuid.uuid4().hex,
+            "estimated_due_date": str(date.today() + timedelta(days=100))}
+    a = client.post("/api/ingestion/manual", json=body).json()
+    b = client.post("/api/ingestion/manual", json=body).json()
+    assert a["status"] == "created" and b["status"] == "already_created"
+    assert a["woman"]["id"] == b["woman"]["id"]
+    ids = [w["id"] for w in client.get("/api/record/women").json()]
+    assert ids.count(a["woman"]["id"]) == 1
+
+
+def test_doctor_role_can_look_up_and_prescribe():
+    doc = _signup("doctor")[0]
+    tok, wid = _mother()
+    code = client.get("/api/record/women/" + wid).json()["mother_code"]
+    assert client.get("/api/record/lookup/" + code, params={"token": doc}).status_code == 200
+    r = client.post("/api/clinical/medication", params={"token": doc},
+                    json={"woman_id": wid, "medication_name": "Iron", "prescribed_by": "Dr. Rao"})
+    assert r.status_code == 200
+
+
+def test_scheduler_get_returns_milestones_for_a_mother():
+    tok, wid = _mother()
+    r = client.get("/api/scheduler/" + wid)
+    assert r.status_code == 200 and "milestones" in r.json()
+    assert client.get("/api/scheduler/does-not-exist").status_code == 404
+
+
+def test_stage_for_pregnant_mother_without_delivery_date():
+    from family.router import _stage_for
+    assert _stage_for({"postpartum_day": None, "trimester": 2}) == "pregnancy_t2"
+    assert _stage_for({"postpartum_day": None, "trimester": None}) is None

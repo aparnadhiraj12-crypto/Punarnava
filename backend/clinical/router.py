@@ -33,7 +33,7 @@ class PrescribedMedicationRequest(BaseModel):
 
 @router.post("/medication")
 def add_prescribed_medication(req: PrescribedMedicationRequest, token: str):
-    require_role(token, {"clinic"})
+    require_role(token, {"clinic", "doctor"})
     if not req.medication_name.strip():
         raise HTTPException(400, "medication_name cannot be empty")
 

@@ -48,7 +48,7 @@ _USERS: dict[str, dict] = {}
 _TOKENS: dict[str, dict] = {}
 _BY_CONTACT: dict[str, str] = {}
 
-ROLES = ("mother", "asha", "clinic")
+ROLES = ("mother", "asha", "clinic", "doctor")
 
 
 def _hash_password(password: str, salt: bytes) -> str:

@@ -19,25 +19,27 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
 
-from record.router import create_woman, WomanRecord, ClinicalEvent
+from record.router import create_woman, WomanRecord, ClinicalEvent, _WOMEN, _with_milestones
 
 router = APIRouter()
+
+_BY_CLIENT_ID: dict[str, str] = {}  # client_id -> woman id, so an offline retry never duplicates
 
 
 class ManualEntry(BaseModel):
     """~15 fields, the FR-A8 manual fallback."""
     woman_name: str
+    delivery_date: Optional[date] = None  # leave empty if she has not delivered yet
+    mode_of_delivery: Optional[str] = None  # "LSCS" | "normal" | "assisted"; empty until delivered
+    pregnancy_start_date: Optional[date] = None
+    estimated_due_date: Optional[date] = None  # never stored as delivery_date
     age: Optional[int] = None
     village: Optional[str] = None
     phone: Optional[str] = None
-    pregnancy_start_date: Optional[date] = None
     medications: list[str] = []
     food_preferences: list[str] = []
-    consent: bool = False
-    delivery_date: Optional[date] = None  # leave empty if she has not delivered yet
-    mode_of_delivery: str = "pending"  # "LSCS" | "normal" | "assisted" | "pending"
-    lmp: Optional[date] = None  # last menstrual period, as the ASHA was told
-    edd: Optional[date] = None  # expected delivery date, as the ASHA was told
+    consent: Optional[bool] = None
+    client_id: Optional[str] = None  # lets an offline app retry safely
     discharge_hb: Optional[float] = Field(None, description="g/dL")
     gestational_diabetes: bool = False
     on_metformin: bool = False
@@ -59,20 +61,22 @@ def submit_manual_entry(entry: ManualEntry):
     if entry.significant_blood_loss:
         events.append(ClinicalEvent(type="significant_blood_loss", source="manual"))
 
-    effective_delivery = entry.delivery_date or entry.edd
-    if effective_delivery is None:
-        raise HTTPException(422, "give either delivery_date or edd (expected delivery date)")
+    if entry.consent is False:
+        raise HTTPException(422, "consent is required to enrol a mother")
+    if entry.delivery_date is None and entry.estimated_due_date is None:
+        raise HTTPException(422, "give either delivery_date or estimated_due_date")
+    if entry.client_id and _BY_CLIENT_ID.get(entry.client_id) in _WOMEN:
+        return {"status": "already_created", "woman": _with_milestones(_WOMEN[_BY_CLIENT_ID[entry.client_id]])}
 
     record = WomanRecord(
         name=entry.woman_name,
+        language=entry.language,
+        delivery_date=entry.delivery_date,
+        pregnancy_start_date=entry.pregnancy_start_date,
+        estimated_due_date=entry.estimated_due_date,
         age=entry.age,
         village=entry.village,
         phone=entry.phone,
-        language=entry.language,
-        pregnancy_start_date=entry.pregnancy_start_date,
-        delivery_date=effective_delivery,
-        lmp=entry.lmp,
-        edd=entry.edd,
         mode_of_delivery=entry.mode_of_delivery,
         medications=entry.medications,
         food_preferences=entry.food_preferences,
@@ -82,7 +86,9 @@ def submit_manual_entry(entry: ManualEntry):
         incomplete=False,
     )
     saved = create_woman(record)
-    return {"status": "created", "woman": saved}
+    if entry.client_id:
+        _BY_CLIENT_ID[entry.client_id] = saved["id"]
+    return {"status": "created", "woman": _with_milestones(saved)}
 
 
 @router.post("/document")

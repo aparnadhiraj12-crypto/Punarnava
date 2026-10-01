@@ -39,3 +39,14 @@ def generate(req: ScheduleRequest):
         }
         for m in milestones
     ]
+
+
+@router.get("/{woman_id}")
+def get_schedule(woman_id: str):
+    """Milestones for one mother, computed live by the record service."""
+    from fastapi import HTTPException
+    from record.router import _WOMEN, _with_milestones
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    rec = _with_milestones(_WOMEN[woman_id])
+    return {"woman_id": woman_id, "milestones": rec["milestones"], "max_days_overdue": rec["max_days_overdue"]}

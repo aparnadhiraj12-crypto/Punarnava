@@ -87,22 +87,21 @@ class ClinicalEvent(BaseModel):
 class WomanRecord(BaseModel):
     id: Optional[str] = None
     name: str
-    age: Optional[int] = None
-    village: Optional[str] = None
-    phone: Optional[str] = None
     language: str = "te"
-    pregnancy_start_date: Optional[date] = None
-    delivery_date: date
+    delivery_date: Optional[date] = None  # actual delivery only; empty while pregnant
     mode_of_delivery: Optional[str] = None  # "LSCS" | "normal" | "assisted"
-    medications: list[str] = []
-    food_preferences: list[str] = []
-    consent: bool = False
     postpartum_day: Optional[int] = None  # computed, never stored (FR-B3)
     clinical_events: list[ClinicalEvent] = []
     discharge_hb: Optional[float] = None
     incomplete: bool = False  # FR-B6: mark incomplete, never reject
-    lmp: Optional[date] = None  # last menstrual period, entered as told (never inferred)
-    edd: Optional[date] = None  # expected delivery date, entered as told
+    pregnancy_start_date: Optional[date] = None  # entered as told (never inferred)
+    estimated_due_date: Optional[date] = None  # never copied into delivery_date
+    age: Optional[int] = None
+    village: Optional[str] = None
+    phone: Optional[str] = None
+    medications: list[str] = []
+    food_preferences: list[str] = []
+    consent: Optional[bool] = None
     trimester: Optional[int] = None  # computed on read from lmp, never stored
     mother_code: Optional[str] = None  # short unique ID a clinic uses to look her up
 
@@ -129,13 +128,18 @@ def _with_milestones(rec: dict) -> dict:
     never stored -- they're derived from delivery_date + clinical_events on
     every read, so a corrected record always recomputes correctly (FR-C7)."""
     rec = dict(rec)
-    rec["postpartum_day"] = (date.today() - date.fromisoformat(rec["delivery_date"])).days
+    delivered = rec.get("delivery_date")
     rec["trimester"] = None
-    if rec.get("lmp") and rec["postpartum_day"] < 0:
-        weeks = (date.today() - date.fromisoformat(rec["lmp"])).days // 7
-        rec["trimester"] = 1 if weeks < 14 else (2 if weeks < 28 else 3)
+    if delivered:
+        rec["postpartum_day"] = (date.today() - date.fromisoformat(delivered)).days
+    else:
+        rec["postpartum_day"] = None
+        start = rec.get("pregnancy_start_date")
+        if start:
+            weeks = (date.today() - date.fromisoformat(start)).days // 7
+            rec["trimester"] = 1 if weeks < 14 else (2 if weeks < 28 else 3)
     events = [e["type"] for e in rec["clinical_events"]]
-    milestones = generate_milestones(date.fromisoformat(rec["delivery_date"]), events)
+    milestones = generate_milestones(date.fromisoformat(delivered), events) if delivered else []
     overrides = _COMPLETIONS.get(rec["id"], {})
 
     entries = []
@@ -175,7 +179,7 @@ def get_woman_record(woman_id: str):
 def lookup_by_code(code: str, token: str):
     """Clinic-only: find a mother by her short unique ID."""
     from auth.router import require_role  # local import avoids a circular import
-    require_role(token, {"clinic"})
+    require_role(token, {"clinic", "doctor"})
     for rec in _WOMEN.values():
         if rec.get("mother_code") == code.strip().upper():
             return _with_milestones(rec)

@@ -90,7 +90,7 @@ def _stage_for(rec: dict):
     """Stage only, never her clinical_events (wellness compliance boundary).
     Day cut-offs are a first guess for a clinician to confirm."""
     day = rec["postpartum_day"]
-    if day < 0:
+    if day is None or day < 0:
         tri = rec.get("trimester")
         return "pregnancy_t" + str(tri) if tri else None
     if day < 42:
