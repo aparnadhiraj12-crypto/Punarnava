@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getWoman, getInteractions } from "../../lib/api";
+import { getWoman, getInteractions, getMedications } from "../../lib/api";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import Avatar from "../../components/Avatar";
@@ -24,20 +24,36 @@ export default function MotherRecord() {
 
   const [woman, setWoman] = useState(null);
   const [interactions, setInteractions] = useState([]);
+  const [medications, setMedications] = useState([]);
+  const [medicationsUnavailable, setMedicationsUnavailable] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([getWoman(uid), getInteractions(uid)])
-      .then(([womanRes, interactionRes]) => {
+    Promise.all([
+      getWoman(uid),
+      getInteractions(uid),
+      getMedications(uid).catch(() => null),
+    ])
+      .then(([womanRes, interactionRes, medicationRes]) => {
         if (!active) return;
 
         setWoman(womanRes?.woman ?? womanRes);
+
         setInteractions(
           interactionRes?.interactions ??
           (Array.isArray(interactionRes) ? interactionRes : [])
         );
+
+        if (medicationRes) {
+          setMedications(
+            medicationRes?.medications ??
+            (Array.isArray(medicationRes) ? medicationRes : [])
+          );
+        } else {
+          setMedicationsUnavailable(true);
+        }
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -136,16 +152,38 @@ export default function MotherRecord() {
             <p className="muted">No clinical events recorded.</p>
           )}
 
-          {woman.medications?.length > 0 && (
-            <>
-              <div className="eyebrow detail-subhead">Medications</div>
+          <div className="eyebrow detail-subhead">Medications</div>
 
-              <ul className="simple-list">
-                {woman.medications.map((item, index) => (
-                  <li key={`${item}-${index}`}>{item}</li>
-                ))}
-              </ul>
-            </>
+          {medicationsUnavailable ? (
+            <p className="muted">
+              Medication history is not available right now.
+            </p>
+          ) : medications.length > 0 ? (
+            <ul className="simple-list">
+              {medications.map((item, index) => {
+                const name =
+                  typeof item === "string"
+                    ? item
+                    : item.name || item.medication || item.medicine || "Medication";
+
+                const details = [
+                  item.dosage,
+                  item.frequency,
+                  item.duration,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+
+                return (
+                  <li key={item.id ?? `${name}-${index}`}>
+                    <div>{name}</div>
+                    {details && <div className="muted">{details}</div>}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="muted">No medications recorded.</p>
           )}
         </article>
       </section>

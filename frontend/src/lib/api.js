@@ -92,3 +92,11 @@ export const getFamilySharedView = (womanId) =>
 
 export const getFamilyGrants = (womanId) =>
   send("GET", `/family/grants/${encodeURIComponent(womanId)}`);
+
+export function getMedications(womanId) {
+  return send("GET", `/clinical/medication/${womanId}`);
+}
+
+export function getMotherReport(womanId) {
+  return send("GET", `/report/${womanId}`);
+}
