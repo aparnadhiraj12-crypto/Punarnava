@@ -245,3 +245,243 @@ fieldset.field-group legend { padding: 0 .4rem; font-size: .82rem; font-weight: 
   .summary-topbar { display: none !important; }
   .summary-page { padding: 0; }
 }
+
+/* Public information pages */
+.public-page {
+  min-height: 100vh;
+}
+
+.public-hero {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 5rem 0 4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 5rem;
+  align-items: center;
+}
+
+.public-hero .hero-copy {
+  max-width: 680px;
+}
+
+.public-hero .lead {
+  max-width: 620px;
+}
+
+.public-sections {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 1rem 0 5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.public-section-card {
+  min-height: 190px;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  border: 1px solid var(--line, #ddd7ca);
+  border-radius: 22px;
+  background: rgba(255, 252, 244, 0.72);
+  box-shadow: 0 8px 28px rgba(66, 54, 35, 0.05);
+}
+
+.public-section-card p {
+  margin: 0.65rem 0 0;
+  line-height: 1.7;
+}
+
+.public-cta {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto 5rem;
+  padding: 2.5rem;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  border-radius: 28px;
+  background: rgba(239, 231, 207, 0.5);
+  border: 1px solid var(--line, #ddd7ca);
+}
+
+.public-cta > div:first-child {
+  max-width: 680px;
+}
+
+.public-cta p {
+  max-width: 620px;
+  margin-bottom: 0;
+  line-height: 1.7;
+}
+
+.public-cta .button-row {
+  flex-shrink: 0;
+}
+
+@media (max-width: 800px) {
+  .public-hero {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding-top: 3rem;
+  }
+
+  .public-hero .hero-art {
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .public-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .public-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .public-hero,
+  .public-sections,
+  .public-cta {
+    width: min(100% - 2rem, 1120px);
+  }
+
+  .public-hero {
+    padding-top: 2rem;
+  }
+
+  .public-cta {
+    padding: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .public-section-card {
+    min-height: 0;
+  }
+}
+
+/* Public information pages */
+.public-page {
+  min-height: 100vh;
+}
+
+.public-hero {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 5rem 0 4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 5rem;
+  align-items: center;
+}
+
+.public-hero .hero-copy {
+  max-width: 680px;
+}
+
+.public-hero .lead {
+  max-width: 620px;
+}
+
+.public-sections {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 1rem 0 5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.public-section-card {
+  min-height: 190px;
+  padding: 1.5rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  border: 1px solid var(--line, #ddd7ca);
+  border-radius: 22px;
+  background: rgba(255, 252, 244, 0.72);
+  box-shadow: 0 8px 28px rgba(66, 54, 35, 0.05);
+}
+
+.public-section-card p {
+  margin: 0.65rem 0 0;
+  line-height: 1.7;
+}
+
+.public-cta {
+  width: min(1120px, calc(100% - 3rem));
+  margin: 0 auto 5rem;
+  padding: 2.5rem;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  border-radius: 28px;
+  background: rgba(239, 231, 207, 0.5);
+  border: 1px solid var(--line, #ddd7ca);
+}
+
+.public-cta > div:first-child {
+  max-width: 680px;
+}
+
+.public-cta p {
+  max-width: 620px;
+  margin-bottom: 0;
+  line-height: 1.7;
+}
+
+.public-cta .button-row {
+  flex-shrink: 0;
+}
+
+@media (max-width: 800px) {
+  .public-hero {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding-top: 3rem;
+  }
+
+  .public-hero .hero-art {
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .public-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .public-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .public-hero,
+  .public-sections,
+  .public-cta {
+    width: min(100% - 2rem, 1120px);
+  }
+
+  .public-hero {
+    padding-top: 2rem;
+  }
+
+  .public-cta {
+    padding: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .public-section-card {
+    min-height: 0;
+  }
+}

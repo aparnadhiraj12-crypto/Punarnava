@@ -21,6 +21,7 @@ import DoctorDashboard from "./routes/doctor/Dashboard";
 import MotherRecord from "./routes/doctor/MotherRecord";
 import Handoff from "./routes/clinic/Handoff";
 import Signup from "./routes/public/Signup";
+import PublicPage from "./routes/public/PublicPage";
 import Login from "./routes/public/Login";
 import Stub from "./components/Stub";
 import RoleGuard from "./components/RoleGuard";
@@ -40,9 +41,9 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/how-it-works" element={<Stub title="How it works" />} />
-        <Route path="/principles" element={<Stub title="Principles" />} />
-        <Route path="/privacy" element={<Stub title="Privacy" />} />
+        <Route path="/how-it-works" element={<PublicPage page="how-it-works" />} />
+        <Route path="/principles" element={<PublicPage page="principles" />} />
+        <Route path="/privacy" element={<PublicPage page="privacy" />} />
 
         <Route
           path="/m/enrol"
