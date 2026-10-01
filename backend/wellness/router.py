@@ -42,6 +42,8 @@ from typing import Optional
 from datetime import datetime, timezone
 import uuid
 
+from auth.router import require_self  # her own choices: mother-only
+
 router = APIRouter()
 
 
@@ -335,7 +337,8 @@ def get_providers(type: Optional[str] = None, region: Optional[str] = None, lang
 
 
 @router.post("/taste-preference")
-def set_taste_preference(pref: TastePreference):
+def set_taste_preference(pref: TastePreference, token: str):
+    require_self(token, pref.woman_id)
     """Overwrites her tag list -- she sets this herself, not inferred from
     anything else in her record."""
     _TASTE_PREFS[pref.woman_id] = pref.tags
@@ -343,21 +346,24 @@ def set_taste_preference(pref: TastePreference):
 
 
 @router.get("/taste-preference/{woman_id}")
-def get_taste_preference(woman_id: str):
+def get_taste_preference(woman_id: str, token: str):
+    require_self(token, woman_id)
     return {"woman_id": woman_id, "tags": _TASTE_PREFS.get(woman_id, [])}
 
 
 @router.post("/saved-plan/{woman_id}/{content_id}")
-def save_to_plan(woman_id: str, content_id: str):
+def save_to_plan(woman_id: str, content_id: str, token: str):
     """She adds an item she found in the library to her own plan. This is
     what makes the plan 'hers' -- her choice, not a system recommendation."""
+    require_self(token, woman_id)
     entry = {"content_id": content_id, "saved_at": datetime.now(timezone.utc).isoformat()}
     _SAVED_PLANS.setdefault(woman_id, []).append(entry)
     return {"status": "saved", "entry": entry}
 
 
 @router.get("/saved-plan/{woman_id}")
-def get_saved_plan(woman_id: str):
+def get_saved_plan(woman_id: str, token: str):
+    require_self(token, woman_id)
     """Returns her saved items with the full content attached, so the
     frontend doesn't need a second round trip."""
     saved = _SAVED_PLANS.get(woman_id, [])
@@ -368,6 +374,7 @@ def get_saved_plan(woman_id: str):
 
 
 @router.delete("/saved-plan/{woman_id}/{content_id}")
-def remove_from_plan(woman_id: str, content_id: str):
+def remove_from_plan(woman_id: str, content_id: str, token: str):
+    require_self(token, woman_id)
     _SAVED_PLANS[woman_id] = [s for s in _SAVED_PLANS.get(woman_id, []) if s["content_id"] != content_id]
     return {"status": "removed"}

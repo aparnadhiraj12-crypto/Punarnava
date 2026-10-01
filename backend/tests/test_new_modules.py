@@ -316,20 +316,21 @@ def test_gym_is_a_provider_type():
 
 
 def test_taste_preference_round_trip():
-    wid = "taste-1"
-    client.post("/api/wellness/taste-preference", json={"woman_id": wid, "tags": ["vegetarian", "spicy"]})
-    r = client.get(f"/api/wellness/taste-preference/{wid}").json()
+    tok, wid = _mother()
+    client.post("/api/wellness/taste-preference", params={"token": tok}, json={"woman_id": wid, "tags": ["vegetarian", "spicy"]})
+    r = client.get(f"/api/wellness/taste-preference/{wid}", params={"token": tok}).json()
     assert r["tags"] == ["vegetarian", "spicy"]
 
 
 def test_saved_plan_round_trip_includes_full_content():
-    wid = "saved-1"
+    tok, wid = _mother()
+    q = {"token": tok}
     content_id = client.get("/api/wellness/content").json()["content"][0]["id"]
-    client.post(f"/api/wellness/saved-plan/{wid}/{content_id}")
-    items = client.get(f"/api/wellness/saved-plan/{wid}").json()["items"]
+    client.post(f"/api/wellness/saved-plan/{wid}/{content_id}", params=q)
+    items = client.get(f"/api/wellness/saved-plan/{wid}", params=q).json()["items"]
     assert items and items[0]["id"] == content_id and "title" in items[0]
-    client.delete(f"/api/wellness/saved-plan/{wid}/{content_id}")
-    assert client.get(f"/api/wellness/saved-plan/{wid}").json()["items"] == []
+    client.delete(f"/api/wellness/saved-plan/{wid}/{content_id}", params=q)
+    assert client.get(f"/api/wellness/saved-plan/{wid}", params=q).json()["items"] == []
 
 
 # ---- meditation: sourced, stage-filtered, never journal-triggered ----
@@ -592,3 +593,31 @@ def test_stage_for_pregnant_mother_without_delivery_date():
     from family.router import _stage_for
     assert _stage_for({"postpartum_day": None, "trimester": 2}) == "pregnancy_t2"
     assert _stage_for({"postpartum_day": None, "trimester": None}) is None
+
+
+# ---- ASHA has limited access: no journal, family sharing or diet choices ----
+
+def test_asha_cannot_touch_private_mother_features():
+    mom_tok, wid = _mother()
+    asha_tok = _signup("asha")[0]
+    q = {"token": asha_tok}
+    assert client.get(f"/api/journal/{wid}", params=q).status_code == 403
+    assert client.post("/api/journal/entry", params=q, json={"woman_id": wid, "mood_emoji": "x", "note": "n"}).status_code == 403
+    assert client.get(f"/api/record/self-report/{wid}", params=q).status_code == 403
+    assert client.post("/api/family/grant", params=q, json={"woman_id": wid, "phone": "9876543210"}).status_code == 403
+    assert client.post("/api/wellness/taste-preference", params=q, json={"woman_id": wid, "tags": ["spicy"]}).status_code == 403
+    assert client.get(f"/api/wellness/taste-preference/{wid}", params=q).status_code == 403
+    cid = client.get("/api/wellness/content").json()["content"][0]["id"]
+    assert client.post(f"/api/wellness/saved-plan/{wid}/{cid}", params=q).status_code == 403
+    assert client.get(f"/api/wellness/saved-plan/{wid}", params=q).status_code == 403
+
+
+def test_asha_can_still_enrol_and_read_general_diet_content():
+    from datetime import date, timedelta
+    asha_tok = _signup("asha")[0]
+    r = client.post("/api/ingestion/manual", params={"token": asha_tok}, json={
+        "woman_name": "Enrolled By Asha", "consent": True,
+        "estimated_due_date": str(date.today() + timedelta(days=100)),
+    })
+    assert r.status_code == 200
+    assert client.get("/api/wellness/content", params={"stage": "pregnancy_t1"}).status_code == 200
