@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getWoman, getInteractions, getMedications } from "../../lib/api";
+import { getWoman, getInteractions, getMedications, getMotherReport } from "../../lib/api";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import Avatar from "../../components/Avatar";
@@ -26,6 +26,8 @@ export default function MotherRecord() {
   const [interactions, setInteractions] = useState([]);
   const [medications, setMedications] = useState([]);
   const [medicationsUnavailable, setMedicationsUnavailable] = useState(false);
+  const [report, setReport] = useState(null);
+  const [reportUnavailable, setReportUnavailable] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -35,8 +37,9 @@ export default function MotherRecord() {
       getWoman(uid),
       getInteractions(uid),
       getMedications(uid).catch(() => null),
+      getMotherReport(uid).catch(() => null),
     ])
-      .then(([womanRes, interactionRes, medicationRes]) => {
+      .then(([womanRes, interactionRes, medicationRes, reportRes]) => {
         if (!active) return;
 
         setWoman(womanRes?.woman ?? womanRes);
@@ -53,6 +56,12 @@ export default function MotherRecord() {
           );
         } else {
           setMedicationsUnavailable(true);
+        }
+
+        if (reportRes) {
+          setReport(reportRes?.report ?? reportRes);
+        } else {
+          setReportUnavailable(true);
         }
       })
       .catch(() => {
@@ -186,6 +195,55 @@ export default function MotherRecord() {
             <p className="muted">No medications recorded.</p>
           )}
         </article>
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="eyebrow">Doctor report</div>
+            <h2>Record summary</h2>
+          </div>
+
+          <Button tone="secondary" onClick={() => window.print()}>
+            Print / export
+          </Button>
+        </div>
+
+        {reportUnavailable ? (
+          <div className="empty-inline">
+            <p>Report data is not available right now.</p>
+            <p className="muted">
+              You can still print the information currently visible on this record.
+            </p>
+          </div>
+        ) : report ? (
+          <div className="detail-grid">
+            {Object.entries(report)
+              .filter(([key, value]) => {
+                if (["id", "woman_id", "mother_id"].includes(key)) return false;
+                return (
+                  typeof value === "string" ||
+                  typeof value === "number" ||
+                  typeof value === "boolean"
+                );
+              })
+              .slice(0, 8)
+              .map(([key, value]) => (
+                <article className="form-card" key={key}>
+                  <div className="eyebrow">
+                    {key.replace(/_/g, " ")}
+                  </div>
+                  <div className="display display-sm">
+                    {String(value)}
+                  </div>
+                </article>
+              ))}
+          </div>
+        ) : (
+          <div className="empty-inline">
+            <p>No report summary is available.</p>
+          </div>
+        )}
       </section>
 
       <section className="section-block">
