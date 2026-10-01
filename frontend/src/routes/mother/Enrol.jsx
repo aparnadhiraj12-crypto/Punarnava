@@ -8,6 +8,7 @@ import PageTitle from "../../components/PageTitle";
 import Field, { SelectField } from "../../components/Field";
 import Button from "../../components/Button";
 import Icon from "../../components/Icon";
+import VoiceInput from "../../components/VoiceInput";
 import PixelArt from "../../components/PixelArt";
 import { enrolMother } from "../../lib/api";
 
@@ -194,14 +195,28 @@ export default function Enrol() {
           }}
         >
           {step === 1 ? (
-            <Field
-              label="Mother's name"
-              placeholder="Full name"
-              value={ashaForm.name}
-              onChange={setAsha("name")}
-              autoFocus
-              required
-            />
+            <div className="field-group">
+              <div className="button-row" style={{ alignItems: "flex-end" }}>
+                <Field
+                  label="Mother's name"
+                  placeholder="Full name"
+                  value={ashaForm.name}
+                  onChange={setAsha("name")}
+                  autoFocus
+                  required
+                />
+
+                <VoiceInput
+                  label="Speak mother's name"
+                  onResult={(value) =>
+                    setAshaForm((p) => ({
+                      ...p,
+                      name: value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
           ) : step === 2 ? (
             <Field
               label="Age"
@@ -215,14 +230,28 @@ export default function Enrol() {
               required
             />
           ) : step === 3 ? (
-            <Field
-              label="Village"
-              placeholder="Village or locality"
-              value={ashaForm.village}
-              onChange={setAsha("village")}
-              autoFocus
-              required
-            />
+            <div className="field-group">
+              <div className="button-row" style={{ alignItems: "flex-end" }}>
+                <Field
+                  label="Village"
+                  placeholder="Village or locality"
+                  value={ashaForm.village}
+                  onChange={setAsha("village")}
+                  autoFocus
+                  required
+                />
+
+                <VoiceInput
+                  label="Speak village name"
+                  onResult={(value) =>
+                    setAshaForm((p) => ({
+                      ...p,
+                      village: value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
           ) : step === 4 ? (
             <Field
               label="Phone number"
@@ -301,21 +330,49 @@ export default function Enrol() {
               </p>
             </fieldset>
           ) : step === 8 ? (
-            <Field
-              label="Medicines"
-              placeholder="e.g. Iron tablets, calcium"
-              value={ashaForm.medications}
-              onChange={setAsha("medications")}
-              autoFocus
-            />
+            <div className="field-group">
+              <div className="button-row" style={{ alignItems: "flex-end" }}>
+                <Field
+                  label="Medicines"
+                  placeholder="e.g. Iron tablets, calcium"
+                  value={ashaForm.medications}
+                  onChange={setAsha("medications")}
+                  autoFocus
+                />
+
+                <VoiceInput
+                  label="Speak medicines"
+                  onResult={(value) =>
+                    setAshaForm((p) => ({
+                      ...p,
+                      medications: value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
           ) : step === 9 ? (
-            <Field
-              label="Food preferences"
-              placeholder="e.g. vegetarian, avoids spicy food"
-              value={ashaForm.food_preferences}
-              onChange={setAsha("food_preferences")}
-              autoFocus
-            />
+            <div className="field-group">
+              <div className="button-row" style={{ alignItems: "flex-end" }}>
+                <Field
+                  label="Food preferences"
+                  placeholder="e.g. vegetarian, avoids spicy food"
+                  value={ashaForm.food_preferences}
+                  onChange={setAsha("food_preferences")}
+                  autoFocus
+                />
+
+                <VoiceInput
+                  label="Speak food preferences"
+                  onResult={(value) =>
+                    setAshaForm((p) => ({
+                      ...p,
+                      food_preferences: value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
           ) : (
             <>
               <fieldset className="field-group">
