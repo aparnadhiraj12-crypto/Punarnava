@@ -139,6 +139,30 @@ def login(req: LoginRequest):
 def get_current_user(token: str) -> Optional[dict]:
     return _TOKENS.get(token)
 
+def require_self(token: str, woman_id: str) -> dict:
+    """Gate for HER OWN private data (journal, self-report reads, family
+    grant creation). Only a token belonging to a mother whose linked_id
+    matches woman_id passes. Raises 401 for a missing/invalid token, 403
+    for a valid token that belongs to someone else or a non-mother role."""
+    session = get_current_user(token)
+    if session is None:
+        raise HTTPException(401, "invalid or expired token")
+    if session["role"] != "mother" or session["linked_id"] != woman_id:
+        raise HTTPException(403, "this token cannot access this woman's data")
+    return session
+
+
+def require_role(token: str, allowed_roles) -> dict:
+    """Gate for role-restricted actions (e.g. only a clinic account may
+    add a prescribed medication entry). allowed_roles is any container
+    supporting `in`, e.g. a set or tuple."""
+    session = get_current_user(token)
+    if session is None:
+        raise HTTPException(401, "invalid or expired token")
+    if session["role"] not in allowed_roles:
+        raise HTTPException(403, f"requires role in {allowed_roles}")
+    return session
+
 
 @router.get("/me")
 def me(token: str):
