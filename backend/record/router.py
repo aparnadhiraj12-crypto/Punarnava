@@ -87,9 +87,16 @@ class ClinicalEvent(BaseModel):
 class WomanRecord(BaseModel):
     id: Optional[str] = None
     name: str
+    age: Optional[int] = None
+    village: Optional[str] = None
+    phone: Optional[str] = None
     language: str = "te"
+    pregnancy_start_date: Optional[date] = None
     delivery_date: date
     mode_of_delivery: Optional[str] = None  # "LSCS" | "normal" | "assisted"
+    medications: list[str] = []
+    food_preferences: list[str] = []
+    consent: bool = False
     postpartum_day: Optional[int] = None  # computed, never stored (FR-B3)
     clinical_events: list[ClinicalEvent] = []
     discharge_hb: Optional[float] = None

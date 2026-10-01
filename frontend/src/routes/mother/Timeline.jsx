@@ -1,176 +1,171 @@
-import { useEffect, useState } from "react";
+// /m and /m/:id - one mother's journey, loaded from the URL (guide section 5).
+// Restyled as the redesign's "Journey" screen: a hero for the next milestone,
+// a progress bar, then the full timeline.
+import { useEffect, useState, useCallback } from "react";
+import { Link, useParams } from "react-router-dom";
 import { getWoman, recordVisit } from "../../lib/api";
-import VoiceButton from "../../components/VoiceButton";
+import { milestoneLabel, eventLabel, stateTone, stateClass, stateText } from "../../lib/labels";
+import { formatDate } from "../../lib/dates";
+import { nextMilestone, progress, isActionable } from "../../lib/milestones";
+import AppShell from "../../components/AppShell";
+import Avatar from "../../components/Avatar";
+import Badge from "../../components/Badge";
+import Button from "../../components/Button";
+import Icon from "../../components/Icon";
+import PageTitle from "../../components/PageTitle";
+import PixelArt from "../../components/PixelArt";
 import CouldNotGoReasons from "../../components/CouldNotGoReasons";
+import { Loading, Unreachable } from "../../components/Page";
 
-/**
- * PRD, C4: "The screen that carries the pitch is the mother's timeline...
- * with no visual break at delivery and none at six weeks. That continuity
- * is the entire thesis rendered as a UI."
- *
- * Wired to the real record service: fetches the seeded demo mother
- * (Lakshmi — GDM on metformin, discharge Hb 8.2, see backend/main.py
- * seed_demo_data) by her fixed demo ID. Milestones come back
- * live-computed by the scheduler, not hardcoded here. Real version reads
- * woman_id from the route/auth context instead of a fixed demo ID.
- */
-const DEMO_WOMAN_ID = "demo-lakshmi";
+export default function Timeline() {
+  const { id } = useParams();
+  const womanId = id ?? localStorage.getItem("punarnava_linked_id") ?? "demo-lakshmi";
 
-const STATE_STYLE = {
-  due: "border-due text-due",
-  missed: "border-overdue text-overdue",
-  done: "border-done text-done",
-  pending: "border-clay-500 text-clay-700",
-};
-
-const LABELS = {
-  postnatal_visit: "Postnatal visit",
-  six_week_review: "Six-week review",
-  postpartum_glucose_test: "Glucose test",
-  blood_pressure_review: "Blood pressure review",
-  haemoglobin_recheck: "Haemoglobin recheck",
-  cervical_screening_enrolment: "Cervical screening",
-  contraception_counselling: "Contraception counselling",
-  annual_wellness_check: "Annual wellness check",
-};
-
-export default function MotherTimeline() {
   const [woman, setWoman] = useState(null);
-  const [milestones, setMilestones] = useState([]);
-  const [active, setActive] = useState(null);
-  const [reason, setReason] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [asking, setAsking] = useState(null); // rule_id currently choosing a reason
+  const [saveError, setSaveError] = useState(false);
 
-  useEffect(() => {
-    getWoman(DEMO_WOMAN_ID)
-      .then((w) => {
-        setWoman(w);
-        setMilestones(w.milestones || []);
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, []);
+  const load = useCallback(() => {
+    setFailed(false);
+    getWoman(womanId).then(setWoman).catch(() => setFailed(true));
+  }, [womanId]);
+  useEffect(() => { setWoman(null); load(); }, [load]);
 
-  const markDone = (m) => {
-    recordVisit(DEMO_WOMAN_ID, "done", null, m.rule_id);
-    setMilestones((prev) =>
-      prev.map((x) => (x.rule_id === m.rule_id ? { ...x, state: "done", days_overdue: -1 } : x))
-    );
-    setActive(null);
-  };
+  async function record(m, outcome, reason) {
+    setSaveError(false);
+    try {
+      await recordVisit(womanId, outcome, reason, m.rule_id);
+      setAsking(null);
+      load();
+    } catch {
+      setSaveError(true);
+    }
+  }
 
-  const submitCouldNotGo = (m) => {
-    recordVisit(DEMO_WOMAN_ID, "could_not_go", reason, m.rule_id);
-    setActive(null);
-    setReason(null);
-  };
+  if (failed) return <AppShell role="mother"><Unreachable onRetry={load} /></AppShell>;
+  if (!woman) return <AppShell role="mother"><Loading /></AppShell>;
+
+  const milestones = woman.milestones ?? [];
+  const next = nextMilestone(milestones);
+  const { done, total } = progress(milestones);
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-clay-50 pb-24" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-      <header className="px-5 pt-6 pb-4">
-        <h1 className="text-lg font-semibold text-plum-700">Your record</h1>
-        <p className="text-sm text-clay-700">Pregnancy → now → what's ahead. Nothing resets.</p>
-      </header>
+    <AppShell role="mother">
+      <PageTitle
+        eyebrow={`Hello, ${woman.name}`}
+        title="Your journey"
+        copy={`Day ${woman.postpartum_day} after delivery · ${formatDate(woman.delivery_date)}${woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}`}
+      />
 
-      {loading && <p className="px-5 text-clay-700">Loading…</p>}
-      {error && (
-        <p className="px-5 text-overdue text-sm">
-          Couldn't reach the backend. Run <code>uvicorn main:app --reload</code> in{" "}
-          <code>backend/</code> first.
-        </p>
+      {woman.incomplete && (
+        <p className="form-error" style={{ marginBottom: "1.5rem" }}>Some details are missing, so this journey may be incomplete.</p>
       )}
 
-      {/* The continuous spine: a single vertical line, delivery marked as one
-          point on it (not a break), postpartum items and long-horizon
-          milestones on the same axis. */}
-      <div className="relative px-5">
-        <div className="absolute left-9 top-0 bottom-0 w-0.5 bg-clay-100" aria-hidden="true" />
+      {woman.clinical_events?.length > 0 && (
+        <ul className="tag-row">
+          {woman.clinical_events.map((e, i) => (
+            <li key={`${e.type}-${i}`}><Badge>{eventLabel(e.type)}</Badge></li>
+          ))}
+        </ul>
+      )}
 
-        {/* Delivery marker — a point on the line, not a wall */}
-        <div className="relative flex items-center gap-4 py-3">
-          <div className="z-10 w-4 h-4 rounded-full bg-plum-500 border-4 border-clay-50 ml-6" />
-          <div>
-            <p className="text-sm font-medium text-plum-700">Delivery</p>
-            <p className="text-xs text-clay-700">{woman?.delivery_date}</p>
-          </div>
-        </div>
-
-        {milestones.map((m) => {
-          const isOverdue = m.days_overdue > 0 && m.state !== "done";
-          const state = m.state === "done" ? "done" : isOverdue ? "missed" : "due";
-          return (
-            <div key={m.rule_id} className="relative flex items-start gap-4 py-3">
-              <div
-                className={`z-10 w-4 h-4 rounded-full border-4 border-clay-50 ml-6 ${
-                  state === "done" ? "bg-done" : state === "missed" ? "bg-overdue" : "bg-due"
-                }`}
-              />
-              <button
-                onClick={() => setActive(active?.rule_id === m.rule_id ? null : m)}
-                className={`flex-1 text-left bg-white rounded-xl p-4 border-l-4 shadow-sm ${STATE_STYLE[state]}`}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-plum-700">{LABELS[m.type] || m.type}</p>
-                    <p className="text-xs text-clay-700">Due {m.due_date}</p>
-                    {isOverdue && (
-                      <p className="text-xs text-overdue font-medium">{m.days_overdue} days overdue</p>
-                    )}
-                  </div>
-                  <VoiceButton
-                    label={`Hear about ${LABELS[m.type] || m.type}`}
-                    onSpeak={(e) => {
-                      e.stopPropagation();
-                      // TRD C3: template + slots, never free generation.
-                      // Stub: real version calls outreach voice delivery.
-                    }}
-                  />
-                </div>
-                <p className="text-[11px] text-clay-500 mt-2">Source: {m.citation}</p>
-              </button>
-            </div>
-          );
-        })}
+      <div className="link-row" style={{ marginTop: "1.2rem" }}>
+        <Link to="/m/help"><Button>Not feeling well?</Button></Link>
+        <Link to="/m/wellness"><Button tone="secondary">Wellness</Button></Link>
+        <Link to="/m/journal"><Button tone="secondary">Journal</Button></Link>
+        <Link to={`/c/handoff/${woman.id}`}><Button tone="quiet">Clinic summary</Button></Link>
       </div>
 
-      {/* Action sheet for the selected milestone */}
-      {active && (
-        <div
-          className="fixed inset-x-0 bottom-0 bg-white rounded-t-2xl shadow-lg p-5 border-t border-clay-100"
-          style={{ paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
-        >
-          <p className="font-medium text-plum-700 mb-3">{LABELS[active.type] || active.type}</p>
-          <div className="flex gap-3 mb-4">
-            <button
-              onClick={() => markDone(active)}
-              className="flex-1 py-3 rounded-xl bg-done text-white font-medium"
-            >
-              Done
-            </button>
-            <button
-              onClick={() => setReason("picking")}
-              className="flex-1 py-3 rounded-xl bg-clay-100 text-clay-700 font-medium"
-            >
-              Could not go
-            </button>
+      {saveError && <p role="alert" className="form-error">Could not save. Try again.</p>}
+
+      {next ? (
+        <section className="next-card">
+          <div className="next-content">
+            <div className="eyebrow">Next milestone</div>
+            <div className="display display-lg">{milestoneLabel(next.type)}</div>
+            <Badge tone={stateTone(next.state)}>{stateText(next)}</Badge>
+            <p>Due {formatDate(next.due_date)}.</p>
+            {isActionable(next) && (
+              <div className="button-row">
+                <Button onClick={() => record(next, "done")}>I went <Icon name="check" /></Button>
+                <Button tone="secondary" onClick={() => setAsking(next.rule_id)}>Could not go</Button>
+              </div>
+            )}
           </div>
-          {reason && (
-            <div className="mb-3">
-              <CouldNotGoReasons
-                selected={reason === "picking" ? null : reason}
-                onSelect={(r) => {
-                  setReason(r);
-                  submitCouldNotGo(active);
-                }}
-              />
-            </div>
-          )}
-          <button onClick={() => setActive(null)} className="w-full text-sm text-clay-500 py-2">
-            Close
-          </button>
+          <PixelArt kind="mother" />
+        </section>
+      ) : total > 0 ? (
+        <section className="next-card">
+          <div className="next-content">
+            <div className="eyebrow">Next milestone</div>
+            <div className="display display-lg">You're up to date.</div>
+            <p>No milestone needs action right now.</p>
+          </div>
+          <PixelArt kind="success" />
+        </section>
+      ) : null}
+
+      {asking === next?.rule_id && (
+        <div className="paper-card" style={{ marginTop: "1rem" }}>
+          <p>Why could you not go?</p>
+          <CouldNotGoReasons onSelect={(reason) => record(next, "could_not_go", reason)} />
+          <Button tone="quiet" onClick={() => setAsking(null)}>Cancel</Button>
         </div>
       )}
-    </div>
+
+      {total > 0 && (
+        <div className="progress-block">
+          <div>
+            <strong>{done} of {total} milestones completed</strong>
+            <span>Your record is up to date</span>
+          </div>
+          <div className="progress-track"><span style={{ width: `${pct}%` }} /></div>
+        </div>
+      )}
+
+      <section className="timeline">
+        <div className="timeline-rule" />
+        {milestones.map((m) => {
+          const actionable = isActionable(m) && m.rule_id !== next?.rule_id;
+          return (
+            <article className={`timeline-item ${stateClass(m.state)}`} key={m.rule_id}>
+              <span className="timeline-dot">{m.state === "done" ? <Icon name="check" size={15} /> : ""}</span>
+              <div className="timeline-card">
+                <div className="timeline-top">
+                  <div>
+                    <div className="card-title">{milestoneLabel(m.type)}</div>
+                  </div>
+                  <Badge tone={stateTone(m.state)}>{stateText(m)}</Badge>
+                </div>
+                <div className="date-line">
+                  <Icon name="clock" />
+                  <span>Due {formatDate(m.due_date)}</span>
+                </div>
+                {typeof m.entitlement === "string" && m.entitlement && (
+                  <p className="entitlement">{m.entitlement}</p>
+                )}
+                <span className="citation">{m.citation}</span>
+
+                {actionable && asking !== m.rule_id && (
+                  <div className="card-actions">
+                    <Button onClick={() => record(m, "done")}>I went</Button>
+                    <Button tone="quiet" onClick={() => setAsking(m.rule_id)}>Could not go</Button>
+                  </div>
+                )}
+                {asking === m.rule_id && m.rule_id !== next?.rule_id && (
+                  <div className="card-actions" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                    <p style={{ margin: 0 }}>Why could you not go?</p>
+                    <CouldNotGoReasons onSelect={(reason) => record(m, "could_not_go", reason)} />
+                    <Button tone="quiet" onClick={() => setAsking(null)}>Cancel</Button>
+                  </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </AppShell>
   );
 }

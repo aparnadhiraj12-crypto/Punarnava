@@ -1,164 +1,105 @@
-// routes/clinic/Handoff.jsx
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+// /c/handoff/:id and /s/:token - one-page summary for a receiving clinic.
+// Works with no account - restyled as the redesign's stand-alone "Summary" sheet
+// (no sidebar). Uses the real field names (state, postpartum_day, clinical_events).
+import { useEffect, useState, useCallback } from "react";
+import { Link, useParams } from "react-router-dom";
 import { getWoman } from "../../lib/api";
-import PixelIcon from "../../components/PixelIcon";
-import StatusStamp from "../../components/StatusStamp";
+import { milestoneLabel, eventLabel } from "../../lib/labels";
+import { formatDate } from "../../lib/dates";
+import Brand from "../../components/Brand";
+import Badge from "../../components/Badge";
+import Button from "../../components/Button";
+import Icon from "../../components/Icon";
+import { Loading, Unreachable } from "../../components/Page";
 
-function Nav() {
+function Column({ title, list, empty }) {
   return (
-    <nav className="bg-forest text-cream flex items-center justify-between px-6 py-3 print:hidden">
-      <div className="flex items-center gap-2 font-display font-semibold">
-        <PixelIcon name="home" size={20} />
-        PUNARNAVA
-      </div>
-      <div className="flex items-center gap-6 text-sm">
-        <a href="/m">Mother</a>
-        <a href="/a">ASHA Queue</a>
-        <a href="/c/handoff" className="underline underline-offset-4">Clinic / Handoff</a>
-      </div>
-    </nav>
-  );
-}
-
-// tiny pixel "QR" — a deterministic-looking grid, decorative only
-function PixelQR() {
-  const cells = Array.from({ length: 64 }, (_, i) => (i * 7) % 5 === 0);
-  return (
-    <div className="grid grid-cols-8 gap-[1px] w-10 h-10 bg-cream border-2 border-ink p-1">
-      {cells.map((on, i) => (
-        <div key={i} className={on ? "bg-ink" : "bg-cream"} />
-      ))}
-    </div>
+    <section className="summary-section">
+      <div className="eyebrow">{title}</div>
+      {list.length === 0 ? <p>{empty}</p> : (
+        <ul>
+          {list.map((m) => (
+            <li key={m.rule_id}>
+              <div className="row-top">
+                <strong>{milestoneLabel(m.type)}</strong>
+                <span>Due {formatDate(m.due_date)}{m.state === "missed" && m.days_overdue ? ` · ${m.days_overdue}d overdue` : ""}</span>
+              </div>
+              <span className="citation">{m.citation}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
 export default function Handoff() {
-  const { id } = useParams();
+  const { id, token } = useParams();
+  const womanId = id ?? token;
+  const shared = Boolean(token);
   const [woman, setWoman] = useState(null);
-  const [error, setError] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    getWoman(id)
-      .then(setWoman)
-      .catch(() => setError(true));
-  }, [id]);
+  const load = useCallback(() => {
+    setFailed(false);
+    getWoman(womanId).then(setWoman).catch(() => setFailed(true));
+  }, [womanId]);
+  useEffect(() => { setWoman(null); load(); }, [load]);
 
-  if (error) {
-    return (
-      <main className="bg-paper min-h-screen">
-        <Nav />
-        <p className="pixel-badge-overdue m-6 w-fit">
-          <PixelIcon name="overdue" size={14} /> Couldn't reach the backend
-        </p>
-      </main>
-    );
-  }
-  if (!woman) return null;
-
-  const completed = woman.milestones?.filter((m) => m.status === "completed") ?? [];
-  const upcoming = woman.milestones?.filter((m) => m.status === "upcoming") ?? [];
-  const overdue = woman.milestones?.filter((m) => m.status === "overdue") ?? [];
+  const ms = woman?.milestones ?? [];
+  const done = ms.filter((m) => m.state === "done");
+  const overdue = ms.filter((m) => m.state === "due" || m.state === "missed");
+  const upcoming = ms.filter((m) => m.state === "pending");
 
   return (
-    <main className="bg-paper min-h-screen">
-      <Nav />
-      <section className="max-w-3xl mx-auto px-6 py-10">
-        <div className="pixel-card mb-6">
-          <h1 className="text-2xl mb-1">Postpartum Care Handoff</h1>
-          <p className="text-sm text-earth mb-4">For clinic use</p>
-          <div className="flex justify-between text-sm">
-            <div>
-              <p className="text-earth">Mother</p>
-              <p className="font-display text-lg">{woman.name}</p>
-            </div>
-            <div>
-              <p className="text-earth">Prepared by</p>
-              <p className="font-medium">{woman.asha_name ?? "—"} (ASHA)</p>
-            </div>
-            <div>
-              <p className="text-earth">Date prepared</p>
-              <p className="font-medium">{woman.prepared_date ?? "—"}</p>
-            </div>
-          </div>
-        </div>
+    <main className={shared ? "shared-page" : "summary-page"}>
+      <div className="summary-topbar">
+        <Link to={id ? `/m/${id}` : "/"}><Button tone="quiet"><Icon name="arrow" /> Back</Button></Link>
+        <Button tone="secondary" onClick={() => window.print()}>Print</Button>
+      </div>
 
-        <div className="pixel-card mb-6">
-          <h2 className="text-lg mb-3">Delivery details</h2>
-          <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+      {failed && <Unreachable onRetry={load} />}
+      {!failed && !woman && <Loading />}
+      {woman && (
+        <div className="summary-sheet">
+          <div className="summary-head">
+            <Brand />
             <div>
-              <p className="text-earth">Delivery date</p>
-              <p className="font-medium">{woman.delivery_date}</p>
+              <div className="eyebrow">{shared ? "Secure shared summary" : "Care summary"}</div>
+              <div className="display display-md">{woman.name}</div>
             </div>
-            <div>
-              <p className="text-earth">Mode</p>
-              <p className="font-medium">{woman.mode_of_delivery}</p>
-            </div>
-            <div>
-              <p className="text-earth">Days postpartum</p>
-              <p className="font-medium">{woman.days_postpartum}</p>
-            </div>
+            {shared && <Badge tone="sage"><Icon name="shield" size={14} /> Private link</Badge>}
           </div>
-          {woman.risk_flags?.length > 0 && (
-            <>
-              <p className="text-sm font-medium mb-2">Risk flags</p>
-              <div className="flex flex-wrap gap-2">
-                {woman.risk_flags.map((flag) => (
-                  <StatusStamp key={flag} status="risk">{flag}</StatusStamp>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
 
-        <h2 className="text-lg mb-3">Care timeline</h2>
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="pixel-card-completed">
-            <p className="font-medium mb-2">Completed ({completed.length})</p>
-            {completed.map((m) => (
-              <p key={m.name} className="text-sm mb-1">{m.name} — {m.date}</p>
-            ))}
+          <div className="summary-status">
+            <div>
+              <span>Current status</span>
+              <strong>Day {woman.postpartum_day} after delivery · {formatDate(woman.delivery_date)}{woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}</strong>
+            </div>
+            {overdue.length > 0 && <Badge tone="terra">{overdue.length} milestone{overdue.length === 1 ? "" : "s"} due or overdue</Badge>}
           </div>
-          <div className="pixel-card-due">
-            <p className="font-medium mb-2">Upcoming ({upcoming.length})</p>
-            {upcoming.map((m) => (
-              <p key={m.name} className="text-sm mb-1">{m.name} — {m.date}</p>
-            ))}
-          </div>
-          <div className="pixel-card-overdue">
-            <p className="font-medium mb-2">Overdue ({overdue.length})</p>
-            {overdue.map((m) => (
-              <p key={m.name} className="text-sm mb-1">{m.name} — {m.date}</p>
-            ))}
-          </div>
-        </div>
 
-        {woman.clinic_notes?.length > 0 && (
-          <div className="pixel-card-overdue mb-6">
-            <p className="font-medium mb-2 flex items-center gap-1.5">
-              <PixelIcon name="overdue" size={14} /> Attention for clinic
-            </p>
-            <ul className="text-sm list-disc list-inside space-y-1">
-              {woman.clinic_notes.map((note) => <li key={note}>{note}</li>)}
+          {woman.discharge_hb != null && <p className="section-note">Haemoglobin at discharge: {woman.discharge_hb}</p>}
+          {woman.clinical_events?.length > 0 && (
+            <ul className="tag-row">
+              {woman.clinical_events.map((e, i) => (
+                <li key={`${e.type}-${i}`}><Badge>{eventLabel(e.type)}</Badge></li>
+              ))}
             </ul>
-          </div>
-        )}
+          )}
 
-        <div className="pixel-card flex items-center justify-between text-sm">
-          <div>
-            <p className="text-earth">ASHA Worker</p>
-            <p className="font-medium">{woman.asha_name ?? "—"}</p>
+          <div className="summary-columns three">
+            <Column title="Overdue or due now" list={overdue} empty="Nothing overdue." />
+            <Column title="Completed" list={done} empty="Nothing completed yet." />
+            <Column title="Upcoming" list={upcoming} empty="Nothing upcoming." />
           </div>
-          <div>
-            <p className="text-earth">Clinic / Handoff</p>
-            <p className="font-medium">{woman.clinic_name ?? "—"}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <PixelQR />
-            <p className="text-earth text-xs">Scan for<br />digital record</p>
-          </div>
+
+          <footer className="summary-footer">
+            <span><Icon name="shield" /> Every item traces to the guideline named under it.</span>
+            <span>Generated {new Date().toLocaleString("en-IN")}</span>
+          </footer>
         </div>
-      </section>
+      )}
     </main>
   );
 }

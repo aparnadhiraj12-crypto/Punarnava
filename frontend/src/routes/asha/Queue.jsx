@@ -1,108 +1,131 @@
-import { useEffect, useState } from "react";
-import { getWomen, recordVisit } from "../../lib/api";
-import { getQueue, flushQueue } from "../../store/offlineStore";
+// /a - ASHA queue. The ONLY order is the backend's (most days overdue first).
+// No sort dropdown, no severity labels; clinical events are plain tags.
+// Two-tap rule (FR-E3): tap 1 picks the outcome, tap 2 confirms or picks a reason.
+import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
+import { listWomen, recordVisit } from "../../lib/api";
+import { eventLabel } from "../../lib/labels";
+import { todayLong } from "../../lib/dates";
+import AppShell from "../../components/AppShell";
+import PageTitle from "../../components/PageTitle";
+import Avatar from "../../components/Avatar";
+import Badge from "../../components/Badge";
+import Button from "../../components/Button";
+import Icon from "../../components/Icon";
+import CouldNotGoReasons from "../../components/CouldNotGoReasons";
+import { Loading, Unreachable, EmptyState } from "../../components/Page";
 
-const LABELS = {
-  postnatal_visit: "Postnatal visit",
-  six_week_review: "Six-week review",
-  postpartum_glucose_test: "Glucose test",
-  blood_pressure_review: "Blood pressure review",
-  haemoglobin_recheck: "Haemoglobin recheck",
-  cervical_screening_enrolment: "Cervical screening",
-  contraception_counselling: "Contraception counselling",
-  annual_wellness_check: "Annual wellness check",
-};
+function StatusBadge({ online }) {
+  return <Badge tone={online ? "sage" : "ink"}><span className="online-dot" /> {online ? "Online" : "Offline"}</Badge>;
+}
 
-export default function AshaQueue() {
-  const [mothers, setMothers] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [online, setOnline] = useState(navigator.onLine);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+export default function Queue() {
+  const [women, setWomen] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [pending, setPending] = useState(null); // { id, outcome }
+  const [saveError, setSaveError] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const women = await getWomen();
-      setMothers(women);
-    } catch (e) {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(() => {
+    setFailed(false);
+    listWomen().then((r) => setWomen(Array.isArray(r) ? r : r.women ?? [])).catch(() => setFailed(true));
+  }, []);
+  useEffect(load, [load]);
 
   useEffect(() => {
-    load();
-    setPendingCount(getQueue().filter((q) => !q.synced).length);
-
-    const goOnline = () => {
-      setOnline(true);
-      flushQueue(async (item) => recordVisit(item.woman_id, item.outcome, item.reason)).then(
-        (remaining) => setPendingCount(remaining)
-      );
-      load();
-    };
-    const goOffline = () => setOnline(false);
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  const recordTwoTap = (mother, outcome) => {
-    recordVisit(mother.id, outcome);
-    setMothers((prev) => prev.filter((m) => m.id !== mother.id));
-    setPendingCount((p) => p + (online ? 0 : 1));
-  };
+  const recordTwoTap = (m, outcome) => setPending({ id: m.id, outcome });
 
-  const outstandingLabels = (woman) =>
-    woman.milestones
-      .filter((m) => m.state !== "done" && m.days_overdue >= 0)
-      .map((m) => LABELS[m.type] || m.type)
-      .join(", ") || "Nothing due yet";
+  async function confirm(m, outcome, reason) {
+    setSaveError(false);
+    try {
+      await recordVisit(m.id, outcome, reason); // no rule_id: most overdue milestone
+      setPending(null);
+      load();
+    } catch {
+      setSaveError(true);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-clay-50" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-      <header className="px-5 pt-6 pb-4 flex items-center justify-between">
+    <AppShell role="asha">
+      <PageTitle eyebrow="ASHA workspace" title="Today's visits" copy="Sorted by days overdue — no risk scoring." action={<StatusBadge online={online} />} />
+
+      <div className="queue-toolbar">
         <div>
-          <h1 className="text-lg font-semibold text-plum-700">Today's queue</h1>
-          <p className="text-sm text-clay-700">Sorted by days overdue, most overdue first.</p>
+          <strong>{women ? `${women.length} mother${women.length === 1 ? "" : "s"} to follow up` : "Loading…"}</strong>
+          <span>{todayLong()}</span>
         </div>
-        <StatusBadge online={online} pendingCount={pendingCount} />
-      </header>
+        <Link to="/m/enrol"><Button><Icon name="plus" /> Enrol a mother</Button></Link>
+      </div>
 
-      {loading && <p className="px-5 text-clay-700">Loading…</p>}
-      {error && (
-        <p className="px-5 text-overdue text-sm">
-          Couldn't reach the backend. Run <code>uvicorn main:app --reload</code> in{" "}
-          <code>backend/</code> first.
-        </p>
-      )}
+      {failed && <Unreachable onRetry={load} />}
+      {!failed && !women && <Loading />}
+      {saveError && <p role="alert" className="form-error">Could not save. Try again.</p>}
+      {women?.length === 0 && <EmptyState title="No mothers yet." note="Enrol one to get started." />}
 
-      <ul className="px-5 space-y-3">
-        {mothers.map((m) => (
-          <li key={m.id} className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-overdue">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-medium text-plum-700">{m.name}</p>
-                <p className="text-xs text-clay-700">Postpartum day {m.postpartum_day}</p>
-                <p className="text-sm text-overdue font-medium mt-1">
-                  {m.max_days_overdue > 0 ? `${m.max_days_overdue} days overdue` : "Due today"}
-                </p>
-                <p className="text-xs text-clay-500 mt-1">{outstandingLabels(m)}</p>
+      <section className="queue-list">
+        {women?.map((m, index) => {
+          const isPending = pending?.id === m.id;
+          const overdue = m.max_days_overdue > 0;
+          return (
+            <article className={`queue-card ${overdue ? "overdue" : ""}`} key={m.id}>
+              <div className="queue-number">{String(index + 1).padStart(2, "0")}</div>
+              <Avatar name={m.name} />
+              <div className="queue-person">
+                <div className="eyebrow">Day {m.postpartum_day} after delivery</div>
+                <div className="card-title">{m.name}</div>
+                {m.clinical_events?.length > 0 && (
+                  <ul className="tag-row">
+                    {m.clinical_events.map((e, i) => (
+                      <li key={`${e.type}-${i}`}><Badge>{eventLabel(e.type)}</Badge></li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+              <Badge tone={overdue ? "terra" : "sage"}>{overdue ? `${m.max_days_overdue} days overdue` : "Up to date"}</Badge>
 
-      {!loading && !error && mothers.length === 0 && (
-        <p className="px-5 text-clay-700 text-center py-10">No mothers in the queue right now.</p>
-      )}
-    </div>
+              {!isPending && (
+                <div className="queue-actions">
+                  <div className="row">
+                    <Button onClick={() => recordTwoTap(m, "done")}>Done</Button>
+                    <Button tone="secondary" onClick={() => recordTwoTap(m, "could_not_go")}>Could not go</Button>
+                    <Link to={`/m/${m.id}`}><Button tone="quiet">View timeline</Button></Link>
+                  </div>
+                </div>
+              )}
+
+              {isPending && pending.outcome === "done" && (
+                <div className="queue-actions">
+                  <p className="prompt-line">Mark the most overdue visit as done?</p>
+                  <div className="row">
+                    <Button onClick={() => confirm(m, "done")}>Yes, done <Icon name="check" /></Button>
+                    <Button tone="quiet" onClick={() => setPending(null)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {isPending && pending.outcome === "could_not_go" && (
+                <div className="queue-actions">
+                  <p className="prompt-line">Why could she not go?</p>
+                  <CouldNotGoReasons onSelect={(reason) => confirm(m, "could_not_go", reason)} />
+                  <Button tone="quiet" onClick={() => setPending(null)}>Cancel</Button>
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
+
+      <div className="queue-rule">
+        <Icon name="clock" />
+        <span>This queue is ordered only by the number of days a visit is overdue.</span>
+      </div>
+    </AppShell>
   );
 }
