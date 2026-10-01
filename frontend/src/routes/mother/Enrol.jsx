@@ -10,7 +10,8 @@ import Button from "../../components/Button";
 import Icon from "../../components/Icon";
 import VoiceInput from "../../components/VoiceInput";
 import PixelArt from "../../components/PixelArt";
-import { enrolMother } from "../../lib/api";
+import { enrolMother, isNetworkError } from "../../lib/api";
+import { queueRequest } from "../../lib/offlineStore";
 
 export default function Enrol() {
   const location = useLocation();
@@ -88,8 +89,24 @@ export default function Enrol() {
           discharge_hb: null,
         };
 
-        const res = await enrolMother(payload);
-        setCreated(res.woman);
+        try {
+          const res = await enrolMother(payload);
+          setCreated(res.woman);
+        } catch (error) {
+          if (!isNetworkError(error)) throw error;
+
+          queueRequest({
+            method: "POST",
+            path: "/ingestion/manual",
+            body: payload,
+            type: "asha_enrolment",
+          });
+
+          setCreated({
+            woman_name: payload.woman_name,
+            pending_sync: true,
+          });
+        }
         return;
       }
 
@@ -441,15 +458,33 @@ export default function Enrol() {
   }
 
   if (created) {
+    const pendingSync = created.pending_sync;
+
     return (
       <AppShell role={role}>
         <div className="success-state">
           <PixelArt kind="success" />
-          <div className="display display-lg">{created.name} is enrolled.</div>
-          <p>Her care journey has started.</p>
+          <div className="display display-lg">
+            {pendingSync
+              ? `${created.woman_name} is saved offline.`
+              : `${created.name} is enrolled.`}
+          </div>
+          <p>
+            {pendingSync
+              ? "This record is safely stored on this device and will sync when the connection returns. A Mother ID will be created after sync."
+              : "Her care journey has started."}
+          </p>
           <div className="button-row">
-            <Link to={`/m/${created.id}`}><Button>View journey</Button></Link>
-            <Link to="/a"><Button tone="secondary">See ASHA queue</Button></Link>
+            {!pendingSync && created.id && (
+              <Link to={`/m/${created.id}`}>
+                <Button>View journey</Button>
+              </Link>
+            )}
+            <Link to="/a">
+              <Button tone={pendingSync ? "primary" : "secondary"}>
+                See ASHA queue
+              </Button>
+            </Link>
           </div>
         </div>
       </AppShell>

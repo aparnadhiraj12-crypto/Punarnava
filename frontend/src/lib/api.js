@@ -10,6 +10,14 @@ function withToken(path) {
   return path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
 }
 
+export function isNetworkError(error) {
+  return error instanceof TypeError || error?.status === undefined;
+}
+
+export async function sendQueuedRequest(item) {
+  return send(item.method, item.path, item.body);
+}
+
 async function send(method, path, body) {
   const res = await fetch(`${BASE}${withToken(path)}`, {
     method,

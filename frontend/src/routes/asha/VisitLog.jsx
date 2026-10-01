@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { recordVisit } from "../../lib/api";
+import { recordVisit, isNetworkError } from "../../lib/api";
+import { queueRequest } from "../../lib/offlineStore";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import Button from "../../components/Button";
@@ -12,6 +13,7 @@ export default function VisitLog() {
 
   const [outcome, setOutcome] = useState("");
   const [saved, setSaved] = useState(false);
+  const [savedOffline, setSavedOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,8 +24,26 @@ export default function VisitLog() {
     try {
       await recordVisit(id, outcome, reason);
       setSaved(true);
-    } catch {
-      setError("Could not save this visit. Please try again.");
+    } catch (error) {
+      if (!isNetworkError(error)) {
+        setError("Could not save this visit. Please try again.");
+        setBusy(false);
+        return;
+      }
+
+      queueRequest({
+        method: "POST",
+        path: "/outreach/respond",
+        body: {
+          woman_id: id,
+          outcome,
+          ...(reason ? { reason } : {}),
+        },
+        type: "asha_visit",
+      });
+
+      setSavedOffline(true);
+      setSaved(true);
     } finally {
       setBusy(false);
     }
@@ -34,8 +54,14 @@ export default function VisitLog() {
       <AppShell role="asha">
         <div className="success-state">
           <Icon name="check" />
-          <div className="display display-lg">Visit recorded.</div>
-          <p>The mother’s continuity record has been updated.</p>
+          <div className="display display-lg">
+            {savedOffline ? "Visit saved offline." : "Visit recorded."}
+          </div>
+          <p>
+            {savedOffline
+              ? "The visit is stored on this device and will sync when the connection returns."
+              : "The mother’s continuity record has been updated."}
+          </p>
 
           <div className="button-row">
             <Link to={`/a/mother/${id}`}>

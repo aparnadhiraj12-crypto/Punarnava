@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import Icon from "./Icon";
 import Brand from "./Brand";
 import { getSession, clearSession } from "../lib/session";
+import OfflineStatus from "./OfflineStatus";
 
 const motherNav = (linkedId) => [
   { to: linkedId ? `/m/${linkedId}` : "/m", label: "Journey", icon: "journey", match: (p) => p === "/m" || (p.startsWith("/m/") && !["/m/wellness", "/m/journal", "/m/help", "/m/enrol"].some((x) => p.startsWith(x))) },
@@ -47,7 +48,7 @@ export default function AppShell({ role, children }) {
           <Link to="/" className="brand-link"><Brand compact /></Link>
           <Link to="/" className="avatar">{name?.[0]?.toUpperCase() ?? "•"}</Link>
         </header>
-        <main className="content">{children}</main>
+        <main className="content">{role === "asha" && <OfflineStatus />}{children}</main>
         <nav className="bottom-nav">
           {nav.map((item) => (
             <Link key={item.to} to={item.to} className={item.match(pathname) ? "active" : ""}>

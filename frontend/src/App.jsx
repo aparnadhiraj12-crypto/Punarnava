@@ -29,8 +29,11 @@ import Button from "./components/Button";
 import Icon from "./components/Icon";
 import PixelArt from "./components/PixelArt";
 import { getSession, clearSession, homeFor } from "./lib/session";
+import useOfflineSync from "./hooks/useOfflineSync";
 
 export default function App() {
+  useOfflineSync();
+
   return (
     <BrowserRouter>
       <Routes>
