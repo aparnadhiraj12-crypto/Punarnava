@@ -5,9 +5,10 @@ Keep this thin on purpose: all decision logic lives in engine.py so that a
 non-engineer reviewer can audit engine.py + ruleset.yaml in one sitting
 without wading through routing/serialization code.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import date
+from typing import Optional
 
 from .engine import generate_milestones
 
@@ -15,13 +16,19 @@ router = APIRouter()
 
 
 class ScheduleRequest(BaseModel):
-    delivery_date: date
+    delivery_date: Optional[date] = None
+    pregnancy_start_date: Optional[date] = None  # antenatal rules; used only while not delivered
     clinical_events: list[str] = []
 
 
 @router.post("/generate")
 def generate(req: ScheduleRequest):
-    milestones = generate_milestones(req.delivery_date, req.clinical_events)
+    if req.delivery_date is None and req.pregnancy_start_date is None:
+        raise HTTPException(422, "give delivery_date or pregnancy_start_date")
+    milestones = generate_milestones(
+        req.delivery_date, req.clinical_events,
+        pregnancy_start_date=req.pregnancy_start_date,
+    )
     # Sort by days_overdue descending — the ONLY sort key permitted anywhere
     # in this system. See docs/compliance.md.
     milestones.sort(key=lambda m: m.days_overdue, reverse=True)

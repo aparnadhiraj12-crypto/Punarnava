@@ -1,4 +1,4 @@
-﻿"""
+"""
 Record service.
 
 Owns: the longitudinal record. Single source of truth. Per PRD: Woman is
@@ -140,7 +140,12 @@ def _with_milestones(rec: dict) -> dict:
             weeks = (date.today() - date.fromisoformat(start)).days // 7
             rec["trimester"] = 1 if weeks < 14 else (2 if weeks < 28 else 3)
     events = [e["type"] for e in rec["clinical_events"]]
-    milestones = generate_milestones(date.fromisoformat(delivered), events) if delivered else []
+    start = rec.get("pregnancy_start_date")
+    milestones = generate_milestones(
+        date.fromisoformat(delivered) if delivered else None,
+        events,
+        pregnancy_start_date=date.fromisoformat(start) if start else None,
+    )
     overrides = _COMPLETIONS.get(rec["id"], {})
 
     entries = []

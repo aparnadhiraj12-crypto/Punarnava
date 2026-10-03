@@ -1,7 +1,9 @@
 ﻿"""
 Journal service.
 
-Not in the original v0 PRD scope -- the PRD lists journaling under
+Not in the original v0 PRD scope -- the PRD lists journaling
+
+under
 "Deliberately deferred". Added on the team's decision, so keep that
 context if a judge asks.
 

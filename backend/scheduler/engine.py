@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scheduler engine -- THE compliance-critical component (PRD, TRD C2).
 
 Hard rules, enforced here by construction, not by prompting:
@@ -51,19 +51,25 @@ class Ruleset:
 
     @classmethod
     def load(cls, path: Path = RULESET_PATH) -> "Ruleset":
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls(version=data["version"], rules=data["rules"])
 
 
-def _resolve_offset(delivery_date: date, expr: str) -> date:
-    """Parses literal offsets like 'delivery_date + 6 weeks'. No arithmetic
-    on patient characteristics -- the offset itself is a fixed published
-    value from the ruleset, this function only does the date math."""
-    parts = expr.replace("delivery_date", "").strip().split()
+ANCHORS = ("delivery_date", "pregnancy_start_date")
+
+
+def _resolve_offset(anchor_date: date, expr: str) -> date:
+    """Parses literal offsets like 'delivery_date + 6 weeks' or
+    'pregnancy_start_date + 20 weeks'. No arithmetic on patient
+    characteristics -- the offset itself is a fixed published value from the
+    ruleset, this function only does the date math."""
+    for name in ANCHORS:
+        expr = expr.replace(name, "")
+    parts = expr.strip().split()
     sign, n, unit = parts[0], int(parts[1]), parts[2]
     days = n * 7 if unit.startswith("week") else n
-    return delivery_date + (timedelta(days=days) if sign == "+" else -timedelta(days=days))
+    return anchor_date + (timedelta(days=days) if sign == "+" else -timedelta(days=days))
 
 
 def _resolve_state(today: date, window_opens: date, window_closes: date) -> str:
@@ -79,23 +85,40 @@ def _resolve_state(today: date, window_opens: date, window_closes: date) -> str:
 
 
 def generate_milestones(
-    delivery_date: date,
+    delivery_date: date | None,
     clinical_events: list[str],
     ruleset: Ruleset | None = None,
     today: date | None = None,
+    pregnancy_start_date: date | None = None,
 ) -> list[Milestone]:
     """Pure function: record facts in, milestone list out. No I/O beyond
     the ruleset file load (done once by the caller/router, not per call,
     to keep this testable without disk access). `today` defaults to the
-    real today but is an explicit parameter so golden tests can pin it."""
+    real today but is an explicit parameter so golden tests can pin it.
+
+    Each rule names the one date it counts from (`anchor`, default
+    delivery_date). Postpartum rules need delivery_date. Antenatal rules
+    need pregnancy_start_date AND no delivery_date: once she has delivered
+    the antenatal schedule stops. If the anchor date is missing the rule is
+    skipped -- nothing is ever guessed or back-calculated."""
     ruleset = ruleset or Ruleset.load()
     today = today or date.today()
     milestones: list[Milestone] = []
 
     for rule in ruleset.rules:
+        anchor_name = rule.get("anchor", "delivery_date")
+        if anchor_name == "delivery_date":
+            anchor_date = delivery_date
+        elif anchor_name == "pregnancy_start_date":
+            anchor_date = pregnancy_start_date if delivery_date is None else None
+        else:
+            raise ValueError(f"rule {rule['id']}: unknown anchor {anchor_name!r}")
+        if anchor_date is None:
+            continue
+
         trigger = rule["when"].get("clinical_event")
         if trigger == "always" or trigger in clinical_events:
-            due = _resolve_offset(delivery_date, rule["due"])
+            due = _resolve_offset(anchor_date, rule["due"])
             open_off, close_off = rule["window"]
             window_opens = due + timedelta(days=_days(open_off))
             window_closes = due + timedelta(days=_days(close_off))

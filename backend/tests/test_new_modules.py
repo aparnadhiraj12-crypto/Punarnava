@@ -1,8 +1,9 @@
-﻿"""Covers auth, wellness and journal. The most important tests here are
+"""Covers auth, wellness and journal. The most important tests here are
 the compliance ones: no wellness or journal response may ever carry a
 score, severity, risk or priority field, and wellness must not vary by a
 woman's clinical history."""
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -33,7 +34,7 @@ def _signup(role="mother", **extra):
     """Real signup -> (token, linked_id). Unique contact per call."""
     _counter[0] += 1
     body = {"role": role, "phone_or_email": f"auth-{role}-{_counter[0]}@test.com",
-            "password": "pw1234", "name": f"{role} {_counter[0]}",
+            "password": "password8", "name": f"{role} {_counter[0]}",
             "delivery_date": "2026-08-01", **extra}
     r = client.post("/api/auth/signup", json=body)
     assert r.status_code == 200
@@ -52,23 +53,23 @@ def _clinic_token():
 
 def test_signup_then_login_round_trip():
     body = {"role": "mother", "phone_or_email": "roundtrip@test.com",
-            "password": "pw1234", "name": "Round Trip"}
+            "password": "password8", "name": "Round Trip"}
     s = client.post("/api/auth/signup", json=body)
     assert s.status_code == 200
-    l = client.post("/api/auth/login", json={"phone_or_email": "roundtrip@test.com", "password": "pw1234"})
+    l = client.post("/api/auth/login", json={"phone_or_email": "roundtrip@test.com", "password": "password8"})
     assert l.status_code == 200
     assert l.json()["linked_id"] == s.json()["linked_id"]
 
 
 def test_wrong_password_is_rejected():
     client.post("/api/auth/signup", json={"role": "asha", "phone_or_email": "wrongpw@test.com",
-                                          "password": "pw1234", "name": "Asha"})
+                                          "password": "password8", "name": "Asha"})
     r = client.post("/api/auth/login", json={"phone_or_email": "wrongpw@test.com", "password": "nope"})
     assert r.status_code == 401
 
 
 def test_duplicate_signup_and_bad_role_are_rejected():
-    body = {"role": "clinic", "phone_or_email": "dup@test.com", "password": "pw1234", "name": "Clinic"}
+    body = {"role": "clinic", "phone_or_email": "dup@test.com", "password": "password8", "name": "Clinic"}
     assert client.post("/api/auth/signup", json=body).status_code == 200
     assert client.post("/api/auth/signup", json=body).status_code == 409
     bad = dict(body, phone_or_email="badrole@test.com", role="admin")
@@ -77,10 +78,52 @@ def test_duplicate_signup_and_bad_role_are_rejected():
 
 def test_me_returns_the_logged_in_user():
     s = client.post("/api/auth/signup", json={"role": "mother", "phone_or_email": "me@test.com",
-                                              "password": "pw1234", "name": "Me Test"})
+                                              "password": "password8", "name": "Me Test"})
     r = client.get("/api/auth/me", params={"token": s.json()["token"]})
     assert r.status_code == 200 and r.json()["name"] == "Me Test"
     assert client.get("/api/auth/me", params={"token": "bogus"}).status_code == 401
+
+
+def test_password_minimum_and_bearer_logout(monkeypatch):
+    short = client.post("/api/auth/signup", json={
+        "role": "clinic", "phone_or_email": "short-password@test.com",
+        "password": "1234567", "name": "Short Password"})
+    assert short.status_code == 400
+    created = client.post("/api/auth/signup", json={
+        "role": "clinic", "phone_or_email": "bearer-auth@test.com",
+        "password": "password8", "name": "Bearer Auth"})
+    token = created.json()["token"]
+    monkeypatch.setenv("PUNARNAVA_ALLOW_QUERY_TOKENS", "0")
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+    assert client.get("/api/auth/me", params={"token": token}).status_code == 400
+    assert client.post("/api/auth/logout", headers=headers).status_code == 200
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+
+
+def test_startup_prunes_expired_tokens_and_demo_seed_is_opt_in(monkeypatch):
+    import auth.router as auth
+    from main import app
+    from record.router import _WOMEN
+
+    now = time.time()
+    auth._TOKENS["test-expired"] = {"issued_at": now - auth._TOKEN_TTL_SECONDS - 1}
+    auth._TOKENS["test-current"] = {"issued_at": now}
+    demo_ids = {"demo-lakshmi", "demo-radha", "demo-saroja"}
+    try:
+        monkeypatch.setenv("PUNARNAVA_SEED_DEMO", "0")
+        with TestClient(app):
+            assert "test-expired" not in auth._TOKENS
+            assert "test-current" in auth._TOKENS
+            assert demo_ids.isdisjoint(_WOMEN)
+        monkeypatch.setenv("PUNARNAVA_SEED_DEMO", "1")
+        with TestClient(app):
+            assert demo_ids.issubset(_WOMEN)
+    finally:
+        assert "test-expired" not in auth._TOKENS
+        auth._TOKENS.pop("test-current", None)
+        for demo_id in demo_ids:
+            _WOMEN.pop(demo_id, None)
 
 
 # ---- wellness ----
@@ -162,7 +205,7 @@ def test_journal_responses_carry_no_scoring_or_analysis_fields():
 
 def test_mother_signup_creates_a_real_record():
     s = client.post("/api/auth/signup", json={
-        "role": "mother", "phone_or_email": "realrec@test.com", "password": "pw1234",
+        "role": "mother", "phone_or_email": "realrec@test.com", "password": "password8",
         "name": "Real Record", "delivery_date": "2026-08-01", "mode_of_delivery": "LSCS"})
     assert s.status_code == 200
     r = client.get(f"/api/record/women/{s.json()['linked_id']}")
@@ -174,14 +217,14 @@ def test_mother_signup_creates_a_real_record():
 
 def test_mother_signup_without_delivery_date_is_flagged_incomplete():
     s = client.post("/api/auth/signup", json={
-        "role": "mother", "phone_or_email": "nodate@test.com", "password": "pw1234", "name": "No Date"})
+        "role": "mother", "phone_or_email": "nodate@test.com", "password": "password8", "name": "No Date"})
     r = client.get(f"/api/record/women/{s.json()['linked_id']}")
     assert r.status_code == 200 and r.json()["incomplete"] is True
 
 
 def test_asha_signup_does_not_create_a_woman_record():
     s = client.post("/api/auth/signup", json={
-        "role": "asha", "phone_or_email": "norecord@test.com", "password": "pw1234", "name": "Sunita"})
+        "role": "asha", "phone_or_email": "norecord@test.com", "password": "password8", "name": "Sunita"})
     assert client.get(f"/api/record/women/{s.json()['linked_id']}").status_code == 404
 
 
@@ -189,7 +232,7 @@ def test_asha_signup_does_not_create_a_woman_record():
 
 def test_mother_signup_creates_a_real_record():
     s = client.post("/api/auth/signup", json={
-        "role": "mother", "phone_or_email": "realrec@test.com", "password": "pw1234",
+        "role": "mother", "phone_or_email": "realrec@test.com", "password": "password8",
         "name": "Real Record", "delivery_date": "2026-08-01", "mode_of_delivery": "LSCS"})
     assert s.status_code == 200
     r = client.get(f"/api/record/women/{s.json()['linked_id']}")
@@ -201,14 +244,14 @@ def test_mother_signup_creates_a_real_record():
 
 def test_mother_signup_without_delivery_date_is_flagged_incomplete():
     s = client.post("/api/auth/signup", json={
-        "role": "mother", "phone_or_email": "nodate@test.com", "password": "pw1234", "name": "No Date"})
+        "role": "mother", "phone_or_email": "nodate@test.com", "password": "password8", "name": "No Date"})
     r = client.get(f"/api/record/women/{s.json()['linked_id']}")
     assert r.status_code == 200 and r.json()["incomplete"] is True
 
 
 def test_asha_signup_does_not_create_a_woman_record():
     s = client.post("/api/auth/signup", json={
-        "role": "asha", "phone_or_email": "norecord@test.com", "password": "pw1234", "name": "Sunita"})
+        "role": "asha", "phone_or_email": "norecord@test.com", "password": "password8", "name": "Sunita"})
     assert client.get(f"/api/record/women/{s.json()['linked_id']}").status_code == 404
 
 
@@ -547,7 +590,9 @@ def test_enrol_full_asha_payload():
     assert w["medications"] == ["iron tablets", "calcium"] and w["food_preferences"] == ["vegetarian"]
     assert w["consent"] is True
     rec = client.get("/api/record/women/" + w["id"]).json()
-    assert rec["milestones"] == [] and rec["trimester"] == 2
+    assert rec["trimester"] == 2
+    assert {m["type"] for m in rec["milestones"]} == {
+        "antenatal_visit_1", "antenatal_visit_2", "antenatal_visit_3", "antenatal_visit_4"}
 
 
 def test_enrol_refuses_when_consent_is_false():
@@ -697,11 +742,11 @@ def test_expired_token_is_rejected(monkeypatch):
 def test_login_locks_after_repeated_failures():
     contact = "lockout-test@test.com"
     r = client.post("/api/auth/signup", json={"role": "mother", "phone_or_email": contact,
-                                               "password": "pw1234", "name": "Lock", "delivery_date": "2026-08-01"})
+                                               "password": "password8", "name": "Lock", "delivery_date": "2026-08-01"})
     assert r.status_code == 200
     for _ in range(5):
         assert client.post("/api/auth/login", json={"phone_or_email": contact, "password": "wrong"}).status_code == 401
-    assert client.post("/api/auth/login", json={"phone_or_email": contact, "password": "pw1234"}).status_code == 429
+    assert client.post("/api/auth/login", json={"phone_or_email": contact, "password": "password8"}).status_code == 429
 
 
 # ---- journal opt-in, limit text field, visit log, handoff link ----

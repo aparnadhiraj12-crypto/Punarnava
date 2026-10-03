@@ -4,3 +4,9 @@ __pycache__/
 node_modules/
 dist/
 .env
+
+# local database holds health data -- never commit
+backend/data/
+*.db
+*.db-wal
+*.db-shm

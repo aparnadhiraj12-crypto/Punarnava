@@ -90,3 +90,49 @@ rules:
     window: ["-4 weeks", "+8 weeks"]
     citation: "VERIFY — general adult women's wellness check interval (draft placeholder)"
     entitlement: null
+
+  # Antenatal check-ups. These anchor on pregnancy_start_date (her LMP, entered
+  # as told, never inferred) and only fire while she has NOT delivered.
+  # !!! VERIFY !!! The four-visit pattern and every window below is a DRAFT
+  # placeholder. A clinician must confirm each interval before real use.
+  # (Note for the reviewer: India's MoHFW minimum is 4 check-ups; WHO's 2016
+  # model recommends 8 contacts. Decide which pattern this app follows.)
+  - id: ANC-01
+    anchor: pregnancy_start_date
+    when:
+      clinical_event: always
+    generates: antenatal_visit_1
+    due: "pregnancy_start_date + 8 weeks"
+    window: ["-4 weeks", "+4 weeks"]
+    citation: "VERIFY — MoHFW minimum antenatal check-ups, first within 12 weeks (draft placeholder)"
+    entitlement: null
+
+  - id: ANC-02
+    anchor: pregnancy_start_date
+    when:
+      clinical_event: always
+    generates: antenatal_visit_2
+    due: "pregnancy_start_date + 20 weeks"
+    window: ["-6 weeks", "+6 weeks"]
+    citation: "VERIFY — MoHFW minimum antenatal check-ups, second at 14-26 weeks (draft placeholder)"
+    entitlement: null
+
+  - id: ANC-03
+    anchor: pregnancy_start_date
+    when:
+      clinical_event: always
+    generates: antenatal_visit_3
+    due: "pregnancy_start_date + 31 weeks"
+    window: ["-3 weeks", "+3 weeks"]
+    citation: "VERIFY — MoHFW minimum antenatal check-ups, third at 28-34 weeks (draft placeholder)"
+    entitlement: null
+
+  - id: ANC-04
+    anchor: pregnancy_start_date
+    when:
+      clinical_event: always
+    generates: antenatal_visit_4
+    due: "pregnancy_start_date + 38 weeks"
+    window: ["-2 weeks", "+2 weeks"]
+    citation: "VERIFY — MoHFW minimum antenatal check-ups, fourth from 36 weeks to term (draft placeholder)"
+    entitlement: null

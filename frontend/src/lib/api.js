@@ -2,14 +2,6 @@
 // FRONTEND guide section 2 exactly; do not rename them.
 export const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
 
-// The backend reads the login token from the ?token= query string.
-function withToken(path) {
-  let token = null;
-  try { token = localStorage.getItem("punarnava_token"); } catch { /* ignore */ }
-  if (!token) return path;
-  return path + (path.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
-}
-
 export function isNetworkError(error) {
   return error instanceof TypeError || error?.status === undefined;
 }
@@ -18,10 +10,16 @@ export async function sendQueuedRequest(item) {
   return send(item.method, item.path, item.body);
 }
 
-async function send(method, path, body) {
-  const res = await fetch(`${BASE}${withToken(path)}`, {
+async function send(method, path, body, tokenOverride) {
+  let token = tokenOverride;
+  if (token === undefined) {
+    try { token = localStorage.getItem("punarnava_token"); } catch { /* ignore */ }
+  }
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -57,7 +55,14 @@ export function recordVisit(womanId, outcome, reason, ruleId) {
 // ---- auth, wellness, journal, safety ----
 export const signup = (payload) => send("POST", "/auth/signup", payload);
 export const login = (payload) => send("POST", "/auth/login", payload);
-export const getMe = (token) => send("GET", `/auth/me?token=${encodeURIComponent(token)}`);
+export const getMe = (token) => send("GET", "/auth/me", undefined, token);
+export async function logout() {
+  try {
+    return await send("POST", "/auth/logout");
+  } finally {
+    try { localStorage.removeItem("punarnava_token"); } catch { /* ignore */ }
+  }
+}
 
 export function getWellnessContent({ stage, region } = {}) {
   const q = new URLSearchParams();

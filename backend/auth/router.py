@@ -18,11 +18,9 @@ should ask for the delivery date at signup so this is the exception.
 ASHA and clinic accounts get a placeholder id, since they have no record.
 
 What this deliberately is NOT: production-grade auth. Passwords are salted
-and hashed (PBKDF2, stdlib only, no new dependency), but there is no OTP,
-no rate limiting, no password reset, and tokens are opaque random strings
-held in memory (not real JWTs, no expiry). Nothing else in the backend
-checks the token yet. Fine for a demo and wrong for real users -- say so
-plainly if asked, same as CORS allow_origins=["*"].
+and hashed (PBKDF2, stdlib only, no new dependency); OTP and password reset
+still need a provider decision. Tokens are opaque random strings, persisted
+with the other stores, and expire after a configurable TTL.
 
 An ASHA enrolling a mother who has no account of her own (the common real
 case -- see PRD persona Lakshmi, "uses a phone that belongs to her
@@ -48,6 +46,7 @@ router = APIRouter()
 _USERS: dict[str, dict] = {}
 _TOKENS: dict[str, dict] = {}
 _BY_CONTACT: dict[str, str] = {}
+_MIN_PASSWORD_LENGTH = 8
 
 ROLES = ("mother", "asha", "clinic", "doctor")
 
@@ -87,8 +86,8 @@ def signup(req: SignupRequest):
         raise HTTPException(400, f"role must be one of {ROLES}")
     if req.phone_or_email in _BY_CONTACT:
         raise HTTPException(409, "an account with this phone/email already exists")
-    if len(req.password) < 4:
-        raise HTTPException(400, "password too short")
+    if len(req.password) < _MIN_PASSWORD_LENGTH:
+        raise HTTPException(400, f"password must be at least {_MIN_PASSWORD_LENGTH} characters")
 
     salt = os.urandom(16)
     user_id = str(uuid.uuid4())
@@ -160,10 +159,23 @@ def get_current_user(token: str) -> Optional[dict]:
     if session is None:
         return None
     issued = session.get("issued_at")
-    if issued is not None and time.time() - issued > _TOKEN_TTL_SECONDS:
+    if issued is None or time.time() - issued > _TOKEN_TTL_SECONDS:
         _TOKENS.pop(token, None)
         return None
     return session
+
+
+def cleanup_expired_tokens(now: Optional[float] = None) -> int:
+    """Remove expired or unverifiable persisted sessions; return the count."""
+    current_time = time.time() if now is None else now
+    expired = [
+        token for token, session in _TOKENS.items()
+        if session.get("issued_at") is None
+        or current_time - session["issued_at"] > _TOKEN_TTL_SECONDS
+    ]
+    for token in expired:
+        _TOKENS.pop(token, None)
+    return len(expired)
 
 
 def open_access() -> bool:
@@ -232,3 +244,9 @@ def me(token: str):
         raise HTTPException(401, "invalid or expired token")
     user = _USERS[session["user_id"]]
     return {"role": user["role"], "linked_id": user["linked_id"], "name": user["name"]}
+
+
+@router.post("/logout")
+def logout(token: str):
+    _TOKENS.pop(token, None)
+    return {"status": "logged_out"}

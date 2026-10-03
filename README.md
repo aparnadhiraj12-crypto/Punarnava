@@ -41,6 +41,19 @@ python -m pytest tests/golden/ -v       # golden scheduler tests
 python ../scripts/compliance_audit.py   # the three build rules
 ```
 
+Demo mothers are not created by default. Set `PUNARNAVA_SEED_DEMO=1` before
+starting the backend to seed Lakshmi, Radha and Saroja for a demo. Auth tokens
+are sent in the `Authorization: Bearer …` header; set
+`PUNARNAVA_ALLOW_QUERY_TOKENS=1` only temporarily for legacy clients.
+
+**Backend container:**
+```bash
+docker build -f backend/Dockerfile -t punarnava-api .
+docker run --rm -p 8000:8000 -v punarnava-data:/data punarnava-api
+```
+
+The container stores SQLite data in `/data`; mount a persistent volume there.
+
 **Frontend:**
 ```bash
 cd frontend
