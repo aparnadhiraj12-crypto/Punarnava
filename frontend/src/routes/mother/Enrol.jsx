@@ -38,7 +38,7 @@ export default function Enrol() {
     consent: false,
   });
   const [f, setF] = useState({
-    woman_name: "", delivery_date: "", mode_of_delivery: "normal", discharge_hb: "",
+    woman_name: "", pregnancy_status: "delivered", pregnancy_start_date: "", delivery_date: "", mode_of_delivery: "normal", discharge_hb: "",
     gestational_diabetes: false, on_metformin: false,
     hypertensive_in_pregnancy: false, significant_blood_loss: false, language: "te",
   });
@@ -111,9 +111,21 @@ export default function Enrol() {
         return;
       }
 
-      const payload = { ...f, woman_name: f.woman_name.trim() };
-      payload.discharge_hb =
-        f.discharge_hb === "" ? null : Number(f.discharge_hb);
+      const payload = {
+        woman_name: f.woman_name.trim(),
+        pregnancy_start_date:
+          f.pregnancy_status === "pregnant" ? f.pregnancy_start_date : null,
+        delivery_date:
+          f.pregnancy_status === "delivered" ? f.delivery_date : null,
+        mode_of_delivery: f.mode_of_delivery,
+        discharge_hb:
+          f.discharge_hb === "" ? null : Number(f.discharge_hb),
+        gestational_diabetes: f.gestational_diabetes,
+        on_metformin: f.on_metformin,
+        hypertensive_in_pregnancy: f.hypertensive_in_pregnancy,
+        significant_blood_loss: f.significant_blood_loss,
+        language: f.language,
+      };
 
       const res = await enrolMother(payload);
       setCreated(res.woman);
@@ -197,11 +209,7 @@ export default function Enrol() {
               setStep(5);
             } else if (step === 5 && ashaForm.language) {
               setStep(6);
-            } else if (
-              step === 6 &&
-              ashaForm.pregnancy_start_date &&
-              ashaForm.delivery_date
-            ) {
+            } else if (step === 6 && ashaForm.pregnancy_start_date) {
               setStep(7);
             } else if (step === 7) {
               setStep(8);
@@ -305,11 +313,10 @@ export default function Enrol() {
               />
 
               <Field
-                label="Estimated due date"
+                label="Estimated due date (optional)"
                 type="date"
                 value={ashaForm.delivery_date}
                 onChange={setAsha("delivery_date")}
-                required
               />
             </>
           ) : step === 7 ? (
@@ -509,9 +516,47 @@ export default function Enrol() {
         {step === 1 ? (
           <>
             <Field label="Mother's name" placeholder="Full name" value={f.woman_name} onChange={set("woman_name")} required />
-            <Field label="Delivery date" type="date" value={f.delivery_date} onChange={set("delivery_date")} required />
-            <SelectField label="Mode of delivery" value={f.mode_of_delivery} onChange={set("mode_of_delivery")}
-                         options={[["normal", "Normal"], ["LSCS", "C-section (LSCS)"], ["assisted", "Assisted"]]} />
+
+            <SelectField
+              label="Pregnancy status"
+              value={f.pregnancy_status}
+              onChange={set("pregnancy_status")}
+              options={[
+                ["pregnant", "Currently pregnant"],
+                ["delivered", "Already delivered"],
+              ]}
+            />
+
+            {f.pregnancy_status === "pregnant" ? (
+              <Field
+                label="Last menstrual period (LMP)"
+                type="date"
+                value={f.pregnancy_start_date}
+                onChange={set("pregnancy_start_date")}
+                required
+              />
+            ) : (
+              <>
+                <Field
+                  label="Delivery date"
+                  type="date"
+                  value={f.delivery_date}
+                  onChange={set("delivery_date")}
+                  required
+                />
+                <SelectField
+                  label="Mode of delivery"
+                  value={f.mode_of_delivery}
+                  onChange={set("mode_of_delivery")}
+                  options={[
+                    ["normal", "Normal"],
+                    ["LSCS", "C-section (LSCS)"],
+                    ["assisted", "Assisted"],
+                  ]}
+                />
+              </>
+            )}
+
             <SelectField label="Language" value={f.language} onChange={set("language")}
                          options={[["te", "Telugu"], ["ml", "Malayalam"], ["pa", "Punjabi"], ["en", "English"]]} />
             <Button type="button" onClick={() => setStep(2)}>Continue <Icon name="arrow" /></Button>
