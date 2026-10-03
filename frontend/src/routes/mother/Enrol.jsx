@@ -196,11 +196,7 @@ export default function Enrol() {
               setStep(5);
             } else if (step === 5 && ashaForm.language) {
               setStep(6);
-            } else if (
-              step === 6 &&
-              ashaForm.pregnancy_start_date &&
-              ashaForm.delivery_date
-            ) {
+            } else if (step === 6 && ashaForm.pregnancy_start_date) {
               setStep(7);
             } else if (step === 7) {
               setStep(8);
@@ -304,11 +300,10 @@ export default function Enrol() {
               />
 
               <Field
-                label="Estimated due date"
+                label="Estimated due date (optional)"
                 type="date"
                 value={ashaForm.delivery_date}
                 onChange={setAsha("delivery_date")}
-                required
               />
             </>
           ) : step === 7 ? (
