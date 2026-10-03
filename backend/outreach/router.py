@@ -41,7 +41,9 @@ class ResponseIn(BaseModel):
 
 
 @router.post("/respond")
-def record_response(resp: ResponseIn):
+def record_response(resp: ResponseIn, token: str = None):
+    from auth.router import require_record_access
+    require_record_access(token, resp.woman_id)
     """Persists via record.mark_milestone(): 'done' becomes a state
     override the ASHA queue and mother timeline both reflect on next fetch;
     every outcome (including not_done/could_not_go with its reason) is

@@ -10,6 +10,7 @@ scripts/compliance_audit.py).
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from datetime import date, timedelta
 
@@ -36,7 +37,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten before any real deployment
+    allow_origins=os.environ.get(
+        "PUNARNAVA_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173",
+    ).split(","),  # set PUNARNAVA_CORS_ORIGINS for a deployed site
     allow_methods=["*"],
     allow_headers=["*"],
 )

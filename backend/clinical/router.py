@@ -50,5 +50,7 @@ def add_prescribed_medication(req: PrescribedMedicationRequest, token: str):
 
 
 @router.get("/medication/{woman_id}")
-def list_prescribed_medication(woman_id: str):
+def list_prescribed_medication(woman_id: str, token: str = None):
+    from auth.router import require_record_access
+    require_record_access(token, woman_id)
     return {"entries": list(reversed(_PRESCRIBED.get(woman_id, [])))}

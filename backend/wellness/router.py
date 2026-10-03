@@ -66,6 +66,7 @@ class WellnessContent(BaseModel):
     title: str
     body: str
     avoid_notes: Optional[str] = None  # diet only: what to avoid at this stage
+    limit_notes: Optional[str] = None  # diet only: clinician-approved 'limit' text; empty until supplied
     nutrients: Optional[Nutrients] = None  # diet only
     taste_tags: list[str] = []  # vegetarian, spicy, mild, regional cuisine names etc.
     source_citation: str

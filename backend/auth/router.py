@@ -38,6 +38,7 @@ import hashlib
 import hmac
 import os
 import secrets
+import time
 import uuid
 
 from record.router import create_woman, WomanRecord
@@ -115,29 +116,89 @@ def signup(req: SignupRequest):
     _BY_CONTACT[req.phone_or_email] = user_id
 
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = {"user_id": user_id, "role": req.role, "linked_id": linked_id}
+    _TOKENS[token] = {"user_id": user_id, "role": req.role, "linked_id": linked_id, "issued_at": time.time()}
 
     return AuthResponse(token=token, role=req.role, linked_id=linked_id)
 
 
 @router.post("/login", response_model=AuthResponse)
 def login(req: LoginRequest):
+    if _too_many_failures(req.phone_or_email):
+        raise HTTPException(429, "too many failed attempts; please try again later")
     user_id = _BY_CONTACT.get(req.phone_or_email)
     if user_id is None:
+        _FAILED_LOGINS.setdefault(req.phone_or_email, []).append(time.time())
         raise HTTPException(401, "no account with this phone/email")
     user = _USERS[user_id]
     salt = bytes.fromhex(user["salt"])
     candidate = _hash_password(req.password, salt)
     if not hmac.compare_digest(candidate, user["password_hash"]):
+        _FAILED_LOGINS.setdefault(req.phone_or_email, []).append(time.time())
         raise HTTPException(401, "wrong password")
+    _FAILED_LOGINS.pop(req.phone_or_email, None)
 
     token = secrets.token_urlsafe(32)
-    _TOKENS[token] = {"user_id": user_id, "role": user["role"], "linked_id": user["linked_id"]}
+    _TOKENS[token] = {"user_id": user_id, "role": user["role"], "linked_id": user["linked_id"], "issued_at": time.time()}
     return AuthResponse(token=token, role=user["role"], linked_id=user["linked_id"])
 
 
+_TOKEN_TTL_SECONDS = int(os.environ.get("PUNARNAVA_TOKEN_TTL_HOURS", "72")) * 3600
+_FAILED_LOGINS: dict[str, list[float]] = {}
+_MAX_FAILED_LOGINS = 5
+_LOCKOUT_SECONDS = 15 * 60
+
+
+def _too_many_failures(contact: str) -> bool:
+    now = time.time()
+    recent = [ts for ts in _FAILED_LOGINS.get(contact, []) if now - ts < _LOCKOUT_SECONDS]
+    _FAILED_LOGINS[contact] = recent
+    return len(recent) >= _MAX_FAILED_LOGINS
+
+
 def get_current_user(token: str) -> Optional[dict]:
-    return _TOKENS.get(token)
+    session = _TOKENS.get(token)
+    if session is None:
+        return None
+    issued = session.get("issued_at")
+    if issued is not None and time.time() - issued > _TOKEN_TTL_SECONDS:
+        _TOKENS.pop(token, None)
+        return None
+    return session
+
+
+def open_access() -> bool:
+    """Demo/test escape hatch ONLY. The default is enforced access; set
+    PUNARNAVA_OPEN_ACCESS=1 to run an open demo."""
+    return os.environ.get("PUNARNAVA_OPEN_ACCESS") == "1"
+
+
+def require_staff(token) -> Optional[dict]:
+    """Any ASHA, doctor or clinic account."""
+    if open_access():
+        return get_current_user(token) if token else None
+    return require_role(token or "", {"asha", "doctor", "clinic"})
+
+
+def require_record_access(token, woman_id: str) -> Optional[dict]:
+    """Who may read or log against ONE mother's longitudinal record:
+    the mother herself, an ASHA worker she is assigned to, or a doctor /
+    clinic account. Family never passes here -- they use a grant link."""
+    if open_access():
+        return None
+    session = get_current_user(token) if token else None
+    if session is None:
+        raise HTTPException(401, "login required")
+    role = session["role"]
+    if role in ("doctor", "clinic"):
+        return session
+    if role == "mother" and session["linked_id"] == woman_id:
+        return session
+    if role == "asha":
+        from record.router import _WOMEN
+        rec = _WOMEN.get(woman_id)
+        if rec is not None and rec.get("assigned_asha") == session["linked_id"]:
+            return session
+    raise HTTPException(403, "this account cannot access this mother's record")
 
 def require_self(token: str, woman_id: str) -> dict:
     """Gate for HER OWN private data (journal, self-report reads, family

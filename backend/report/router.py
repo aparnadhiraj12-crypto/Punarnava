@@ -23,17 +23,26 @@ what's in the entries, never a mood summary, never a trend. The content
 of her journal is not compiled here, ever.
 """
 from fastapi import APIRouter, HTTPException
+import secrets
+import time
 
 from record.router import _WOMEN, _with_milestones
 from selfreport.router import _ENTRIES as _SELF_ENTRIES
 from clinical.router import _PRESCRIBED
 from journal.router import _ENTRIES as _JOURNAL_ENTRIES
 
+from auth.router import require_record_access
+
 router = APIRouter()
 
 
 @router.get("/{woman_id}")
-def full_report(woman_id: str):
+def full_report(woman_id: str, token: str = None):
+    require_record_access(token, woman_id)
+    return build_report(woman_id)
+
+
+def build_report(woman_id: str):
     if woman_id not in _WOMEN:
         raise HTTPException(404, "not found")
 
@@ -61,3 +70,28 @@ def full_report(woman_id: str):
             "entry_count": journal_count,
         },
     }
+
+
+# ---- handoff link: a receiving clinic opens the report without an account ----
+_HANDOFF: dict[str, dict] = {}
+_HANDOFF_DAYS = 7
+
+
+@router.post("/{woman_id}/handoff-link")
+def create_handoff_link(woman_id: str, token: str = None):
+    """The mother, her assigned ASHA, or a doctor creates a time-limited link.
+    It opens the same compiled report above -- never her journal text."""
+    require_record_access(token, woman_id)
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    link = secrets.token_urlsafe(16)
+    _HANDOFF[link] = {"woman_id": woman_id, "expires_at": time.time() + _HANDOFF_DAYS * 86400}
+    return {"share_token": link, "expires_in_days": _HANDOFF_DAYS}
+
+
+@router.get("/shared/{share_token}")
+def shared_report(share_token: str):
+    entry = _HANDOFF.get(share_token)
+    if entry is None or entry["expires_at"] < time.time():
+        raise HTTPException(404, "this link has expired or is not valid")
+    return build_report(entry["woman_id"])

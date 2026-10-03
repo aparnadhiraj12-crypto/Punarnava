@@ -621,3 +621,150 @@ def test_asha_can_still_enrol_and_read_general_diet_content():
     })
     assert r.status_code == 200
     assert client.get("/api/wellness/content", params={"stage": "pregnancy_t1"}).status_code == 200
+
+
+# ---- access rules (enforcement ON), ASHA assignment, token expiry, lockout ----
+
+def _strict(monkeypatch):
+    monkeypatch.setenv("PUNARNAVA_OPEN_ACCESS", "0")
+
+
+def test_record_requires_login_when_not_open(monkeypatch):
+    _strict(monkeypatch)
+    tok, wid = _mother()
+    other_tok, _ = _mother()
+    assert client.get(f"/api/record/women/{wid}").status_code == 401
+    assert client.get(f"/api/record/women/{wid}", params={"token": tok}).status_code == 200
+    assert client.get(f"/api/record/women/{wid}", params={"token": other_tok}).status_code == 403
+    assert client.get("/api/record/women", params={"token": tok}).status_code == 403
+
+
+def test_asha_sees_only_the_mothers_she_enrolled(monkeypatch):
+    from datetime import date, timedelta
+    _strict(monkeypatch)
+    asha1 = _signup("asha")[0]
+    asha2 = _signup("asha")[0]
+    body = {"woman_name": "Assigned", "consent": True,
+            "estimated_due_date": str(date.today() + timedelta(days=100))}
+    wid = client.post("/api/ingestion/manual", params={"token": asha1}, json=body).json()["woman"]["id"]
+    assert [w["id"] for w in client.get("/api/record/women", params={"token": asha1}).json()] == [wid]
+    assert client.get("/api/record/women", params={"token": asha2}).json() == []
+    for path in (f"/api/record/women/{wid}", f"/api/record/women/{wid}/interactions",
+                 f"/api/scheduler/{wid}", f"/api/report/{wid}", f"/api/clinical/medication/{wid}"):
+        assert client.get(path, params={"token": asha1}).status_code == 200, path
+        assert client.get(path, params={"token": asha2}).status_code == 403, path
+        assert client.get(path).status_code == 401, path
+
+
+def test_enrolling_needs_a_login_when_not_open(monkeypatch):
+    from datetime import date, timedelta
+    _strict(monkeypatch)
+    r = client.post("/api/ingestion/manual", json={
+        "woman_name": "Anonymous", "estimated_due_date": str(date.today() + timedelta(days=100))})
+    assert r.status_code == 401
+
+
+def test_doctor_can_assign_an_asha_and_read_any_record(monkeypatch):
+    _strict(monkeypatch)
+    doc = _signup("doctor")[0]
+    asha_tok, asha_id = _signup("asha")
+    mom_tok, wid = _mother()
+    assert client.get(f"/api/record/women/{wid}", params={"token": asha_tok}).status_code == 403
+    assert client.get(f"/api/record/women/{wid}", params={"token": doc}).status_code == 200
+    assert client.post(f"/api/record/women/{wid}/assign", params={"token": mom_tok}, json={"asha_id": asha_id}).status_code == 403
+    assert client.post(f"/api/record/women/{wid}/assign", params={"token": doc}, json={"asha_id": "nobody"}).status_code == 404
+    assert client.post(f"/api/record/women/{wid}/assign", params={"token": doc}, json={"asha_id": asha_id}).status_code == 200
+    assert client.get(f"/api/record/women/{wid}", params={"token": asha_tok}).status_code == 200
+
+
+def test_visit_response_needs_access_to_that_mother(monkeypatch):
+    _strict(monkeypatch)
+    asha_tok = _signup("asha")[0]
+    mom_tok, wid = _mother()
+    body = {"woman_id": wid, "outcome": "could_not_go", "reason": "no_transport"}
+    assert client.post("/api/outreach/respond", params={"token": asha_tok}, json=body).status_code == 403
+    assert client.post("/api/outreach/respond", json=body).status_code == 401
+
+
+def test_expired_token_is_rejected(monkeypatch):
+    import auth.router as auth_router
+    tok, wid = _mother()
+    assert client.get("/api/auth/me", params={"token": tok}).status_code == 200
+    monkeypatch.setattr(auth_router, "_TOKEN_TTL_SECONDS", -1)
+    assert client.get("/api/auth/me", params={"token": tok}).status_code == 401
+
+
+def test_login_locks_after_repeated_failures():
+    contact = "lockout-test@test.com"
+    r = client.post("/api/auth/signup", json={"role": "mother", "phone_or_email": contact,
+                                               "password": "pw1234", "name": "Lock", "delivery_date": "2026-08-01"})
+    assert r.status_code == 200
+    for _ in range(5):
+        assert client.post("/api/auth/login", json={"phone_or_email": contact, "password": "wrong"}).status_code == 401
+    assert client.post("/api/auth/login", json={"phone_or_email": contact, "password": "pw1234"}).status_code == 429
+
+
+# ---- journal opt-in, limit text field, visit log, handoff link ----
+
+def test_journal_doctor_sees_it_only_after_mother_opts_in():
+    tok, wid = _mother()
+    doc = _signup("doctor")[0]
+    asha = _signup("asha")[0]
+    client.post("/api/journal/entry", params={"token": tok},
+                json={"woman_id": wid, "mood_emoji": "\U0001F622", "note": "private words"})
+    assert client.get(f"/api/journal/{wid}", params={"token": doc}).status_code == 403
+    assert client.get(f"/api/journal/sharing/{wid}", params={"token": tok}).json()["share_with_doctor"] is False
+    assert client.post("/api/journal/sharing", params={"token": doc},
+                       json={"woman_id": wid, "share_with_doctor": True}).status_code == 403
+    assert client.post("/api/journal/sharing", params={"token": tok},
+                       json={"woman_id": wid, "share_with_doctor": True}).status_code == 200
+    assert client.get(f"/api/journal/{wid}", params={"token": doc}).json()["entries"][0]["note"] == "private words"
+    assert client.get(f"/api/journal/{wid}", params={"token": asha}).status_code == 403
+    client.post("/api/journal/sharing", params={"token": tok}, json={"woman_id": wid, "share_with_doctor": False})
+    assert client.get(f"/api/journal/{wid}", params={"token": doc}).status_code == 403
+
+
+def test_limit_notes_field_is_present_on_wellness_content():
+    items = client.get("/api/wellness/content").json()["content"]
+    assert items and all("limit_notes" in i for i in items)
+
+
+def test_asha_logs_visits_and_conditions_for_her_own_mother(monkeypatch):
+    from datetime import date, timedelta
+    _strict(monkeypatch)
+    asha1 = _signup("asha")[0]
+    asha2 = _signup("asha")[0]
+    wid = client.post("/api/ingestion/manual", params={"token": asha1}, json={
+        "woman_name": "Visit Test", "consent": True,
+        "estimated_due_date": str(date.today() + timedelta(days=100))}).json()["woman"]["id"]
+    r = client.post(f"/api/record/women/{wid}/visits", params={"token": asha1},
+                    json={"note": "Home visit, no new concerns", "kind": "home_visit"})
+    assert r.status_code == 200
+    assert client.post(f"/api/record/women/{wid}/visits", params={"token": asha2},
+                       json={"note": "x"}).status_code == 403
+    assert client.post(f"/api/record/women/{wid}/visits", params={"token": asha1},
+                       json={"kind": "carrier_pigeon"}).status_code == 400
+    got = client.get(f"/api/record/women/{wid}/visits", params={"token": asha1}).json()["entries"]
+    assert got[0]["note"] == "Home visit, no new concerns"
+    for _ in range(2):
+        ev = client.post(f"/api/record/women/{wid}/events", params={"token": asha1},
+                         json={"type": "Gestational Diabetes"})
+        assert ev.status_code == 200
+    assert [e["type"] for e in ev.json()["clinical_events"]] == ["gestational_diabetes"]
+    mom_tok, mom_id = _mother()
+    assert client.post(f"/api/record/women/{mom_id}/visits", params={"token": mom_tok},
+                       json={"note": "x"}).status_code == 403
+
+
+def test_handoff_link_gives_a_clinic_the_report_without_an_account(monkeypatch):
+    import report.router as report_router
+    _strict(monkeypatch)
+    tok, wid = _mother()
+    other_tok, _ = _mother()
+    assert client.post(f"/api/report/{wid}/handoff-link", params={"token": other_tok}).status_code == 403
+    link = client.post(f"/api/report/{wid}/handoff-link", params={"token": tok}).json()["share_token"]
+    r = client.get(f"/api/report/shared/{link}")
+    assert r.status_code == 200 and r.json()["name"]
+    assert client.get("/api/report/shared/not-a-real-link").status_code == 404
+    report_router._HANDOFF[link]["expires_at"] = 0
+    assert client.get(f"/api/report/shared/{link}").status_code == 404

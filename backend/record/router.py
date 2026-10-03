@@ -104,6 +104,7 @@ class WomanRecord(BaseModel):
     consent: Optional[bool] = None
     trimester: Optional[int] = None  # computed on read from lmp, never stored
     mother_code: Optional[str] = None  # short unique ID a clinic uses to look her up
+    assigned_asha: Optional[str] = None  # linked_id of the ASHA worker responsible for her
 
 
 def create_woman(record: WomanRecord, fixed_id: str | None = None) -> dict:
@@ -164,15 +165,106 @@ def _with_milestones(rec: dict) -> dict:
 
 
 @router.post("/women")
-def create_woman_record(record: WomanRecord):
-    return create_woman(record)
+def create_woman_record(record: WomanRecord, token: Optional[str] = None):
+    from auth.router import require_staff
+    session = require_staff(token)
+    created = create_woman(record)
+    if session and session["role"] == "asha":
+        created["assigned_asha"] = session["linked_id"]
+    return created
 
 
 @router.get("/women/{woman_id}")
-def get_woman_record(woman_id: str):
+def get_woman_record(woman_id: str, token: Optional[str] = None):
+    from auth.router import require_record_access
+    require_record_access(token, woman_id)
     if woman_id not in _WOMEN:
         raise HTTPException(404, "not found")
     return _with_milestones(_WOMEN[woman_id])
+
+
+VISIT_KINDS = {"home_visit", "phone_call", "clinic_visit"}
+_VISITS: dict[str, list[dict]] = {}
+
+
+class VisitNote(BaseModel):
+    note: Optional[str] = None
+    visited_on: Optional[date] = None
+    kind: str = "home_visit"
+
+
+class EventIn(BaseModel):
+    type: str
+    source: str = "manual"
+
+
+@router.post("/women/{woman_id}/visits")
+def log_visit(woman_id: str, req: VisitNote, token: Optional[str] = None):
+    """Staff-written follow-up note, from pregnancy through the first year.
+    Stored as written -- nothing is scored, summarised or interpreted."""
+    from auth.router import require_record_access
+    session = require_record_access(token, woman_id)
+    if session and session["role"] == "mother":
+        raise HTTPException(403, "visits are logged by her health worker or doctor")
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    if req.kind not in VISIT_KINDS:
+        raise HTTPException(400, "kind must be one of " + ", ".join(sorted(VISIT_KINDS)))
+    entry = {
+        "id": str(uuid.uuid4()),
+        "kind": req.kind,
+        "visited_on": (req.visited_on or date.today()).isoformat(),
+        "note": req.note,
+        "logged_by_role": session["role"] if session else None,
+        "logged_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _VISITS.setdefault(woman_id, []).append(entry)
+    return {"status": "created", "entry": entry}
+
+
+@router.get("/women/{woman_id}/visits")
+def list_visits(woman_id: str, token: Optional[str] = None):
+    from auth.router import require_record_access
+    require_record_access(token, woman_id)
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    return {"entries": list(reversed(_VISITS.get(woman_id, [])))}
+
+
+@router.post("/women/{woman_id}/events")
+def add_clinical_event(woman_id: str, req: EventIn, token: Optional[str] = None):
+    """Transcribes a condition the ASHA or doctor reports (e.g. diabetes,
+    blood pressure). Recorded as told -- never inferred from anything else."""
+    from auth.router import require_record_access
+    session = require_record_access(token, woman_id)
+    if session and session["role"] == "mother":
+        raise HTTPException(403, "conditions are recorded by her health worker or doctor")
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    etype = req.type.strip().lower().replace(" ", "_")
+    if not etype or len(etype) > 60:
+        raise HTTPException(400, "type must be 1 to 60 characters")
+    events = _WOMEN[woman_id]["clinical_events"]
+    if not any(e["type"] == etype for e in events):
+        events.append({"type": etype, "source": req.source})
+    return {"woman_id": woman_id, "clinical_events": events}
+
+
+class AssignRequest(BaseModel):
+    asha_id: str
+
+
+@router.post("/women/{woman_id}/assign")
+def assign_asha(woman_id: str, req: AssignRequest, token: str):
+    """Doctor / clinic puts a mother in one ASHA worker's care."""
+    from auth.router import require_role, _USERS
+    require_role(token, {"clinic", "doctor"})
+    if woman_id not in _WOMEN:
+        raise HTTPException(404, "not found")
+    if not any(u["role"] == "asha" and u["linked_id"] == req.asha_id for u in _USERS.values()):
+        raise HTTPException(404, "no ASHA account with that id")
+    _WOMEN[woman_id]["assigned_asha"] = req.asha_id
+    return {"status": "assigned", "woman_id": woman_id, "assigned_asha": req.asha_id}
 
 
 @router.get("/lookup/{code}")
@@ -187,16 +279,22 @@ def lookup_by_code(code: str, token: str):
 
 
 @router.get("/women")
-def list_women():
+def list_women(token: Optional[str] = None):
+    from auth.router import require_staff
+    session = require_staff(token)
     """Backing endpoint for the ASHA queue. Sorted by max_days_overdue --
     the ONLY sort key permitted (FR-E1). Do not add a second one here."""
     all_women = [_with_milestones(w) for w in _WOMEN.values()]
+    if session and session["role"] == "asha":
+        all_women = [w for w in all_women if w.get("assigned_asha") == session["linked_id"]]
     all_women.sort(key=lambda w: w["max_days_overdue"], reverse=True)
     return all_women
 
 
 @router.get("/women/{woman_id}/interactions")
-def get_woman_interactions(woman_id: str):
+def get_woman_interactions(woman_id: str, token: Optional[str] = None):
+    from auth.router import require_record_access
+    require_record_access(token, woman_id)
     """Every recorded response for one mother -- done, not_done and
     could_not_go, each with its reason if given. This is what proves a
     could-not-go reason was actually captured, not just accepted and

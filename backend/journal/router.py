@@ -22,7 +22,7 @@ Still stubbed: in-memory only (resets on restart). Both routes require
 a token belonging to the mother whose woman_id it is (require_self).
 """
 from fastapi import APIRouter, HTTPException
-from auth.router import require_self
+from auth.router import require_self, get_current_user
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -68,6 +68,32 @@ def add_entry(req: JournalEntryRequest, token: str):
 def list_entries(woman_id: str, token: str):
     """Newest first, so her latest entry is at the top. No filtering,
     counting or summarising on purpose."""
-    require_self(token, woman_id)
+    session = get_current_user(token)
+    if session and session["role"] in ("doctor", "clinic") and _SHARED_WITH_DOCTOR.get(woman_id):
+        pass  # she explicitly opted in to let a doctor read it
+    else:
+        require_self(token, woman_id)
     entries = list(reversed(_ENTRIES.get(woman_id, [])))
     return {"entries": entries}
+
+
+# ---- her choice: may a doctor read the journal? Private by default. ----
+_SHARED_WITH_DOCTOR: dict[str, bool] = {}
+
+
+class SharingRequest(BaseModel):
+    woman_id: str
+    share_with_doctor: bool
+
+
+@router.post("/sharing")
+def set_sharing(req: SharingRequest, token: str):
+    require_self(token, req.woman_id)
+    _SHARED_WITH_DOCTOR[req.woman_id] = req.share_with_doctor
+    return {"woman_id": req.woman_id, "share_with_doctor": req.share_with_doctor}
+
+
+@router.get("/sharing/{woman_id}")
+def get_sharing(woman_id: str, token: str):
+    require_self(token, woman_id)
+    return {"woman_id": woman_id, "share_with_doctor": _SHARED_WITH_DOCTOR.get(woman_id, False)}

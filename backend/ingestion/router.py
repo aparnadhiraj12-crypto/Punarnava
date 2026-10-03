@@ -49,10 +49,14 @@ class ManualEntry(BaseModel):
 
 
 @router.post("/manual")
-def submit_manual_entry(entry: ManualEntry):
+def submit_manual_entry(entry: ManualEntry, token: Optional[str] = None):
     """FR-A8, now real: builds clinical_events from the flags the ASHA/
     clinic staff ticked, creates the woman's record, and returns it with
     milestones already attached (via record service's live computation)."""
+    from auth.router import get_current_user, open_access
+    session = get_current_user(token) if token else None
+    if session is None and not open_access():
+        raise HTTPException(401, "login required to enrol a mother")
     events: list[ClinicalEvent] = []
     if entry.gestational_diabetes:
         events.append(ClinicalEvent(type="gestational_diabetes", source="manual"))
@@ -86,6 +90,8 @@ def submit_manual_entry(entry: ManualEntry):
         incomplete=False,
     )
     saved = create_woman(record)
+    if session and session["role"] == "asha":
+        saved["assigned_asha"] = session["linked_id"]
     if entry.client_id:
         _BY_CLIENT_ID[entry.client_id] = saved["id"]
     return {"status": "created", "woman": _with_milestones(saved)}
