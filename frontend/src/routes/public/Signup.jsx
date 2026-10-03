@@ -13,8 +13,7 @@ import { friendlyAuthError } from "../../lib/errors";
 
 const ROLES = [
   { id: "mother", label: "Mother", icon: "heart" },
-  { id: "asha", label: "ASHA", icon: "people" },
-  { id: "clinic", label: "Clinic", icon: "clinic" },
+  { id: "asha", label: "ASHA", icon: "people" }
 ];
 
 export default function Signup() {
