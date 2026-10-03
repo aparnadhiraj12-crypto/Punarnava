@@ -15,7 +15,7 @@ intake (FR-A1..A7, FR-A9, FR-A10). Depth over breadth was always the v0
 call here (TRD C1) — tonight's demo uses the manual path only, honestly.
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import date
 
@@ -47,6 +47,12 @@ class ManualEntry(BaseModel):
     significant_blood_loss: bool = False
     language: str = "te"
 
+    @field_validator("delivery_date", "pregnancy_start_date", "estimated_due_date", mode="before")
+    @classmethod
+    def _empty_date_to_none(cls, value):
+        """The forms send \"\" for a date the user didn't fill in."""
+        return None if isinstance(value, str) and not value.strip() else value
+
 
 @router.post("/manual")
 def submit_manual_entry(entry: ManualEntry, token: Optional[str] = None):
@@ -67,8 +73,10 @@ def submit_manual_entry(entry: ManualEntry, token: Optional[str] = None):
 
     if entry.consent is False:
         raise HTTPException(422, "consent is required to enrol a mother")
-    if entry.delivery_date is None and entry.estimated_due_date is None:
-        raise HTTPException(422, "give either delivery_date or estimated_due_date")
+    if (entry.delivery_date is None and entry.estimated_due_date is None
+            and entry.pregnancy_start_date is None):
+        raise HTTPException(
+            422, "give delivery_date, pregnancy_start_date or estimated_due_date")
     if entry.client_id and _BY_CLIENT_ID.get(entry.client_id) in _WOMEN:
         return {"status": "already_created", "woman": _with_milestones(_WOMEN[_BY_CLIENT_ID[entry.client_id]])}
 

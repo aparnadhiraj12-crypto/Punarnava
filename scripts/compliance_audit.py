@@ -28,10 +28,24 @@ NO_MODEL_ZONES = ["scheduler", "outreach", "record"]
 
 failures: list[str] = []
 
+# Never audit third-party code (a venv inside backend/ is common on Windows).
+SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", "site-packages", "data"}
+
+
+def _py_files(root):
+    for f in root.rglob("*.py"):
+        if not SKIP_DIRS.intersection(f.relative_to(root).parts):
+            yield f
+
+
+def _read(path):
+    # utf-8 explicitly: Windows' default (cp1252) can't read every file
+    return path.read_text(encoding="utf-8", errors="replace")
+
 
 def check_forbidden_fields():
-    for py_file in BACKEND.rglob("*.py"):
-        text = py_file.read_text()
+    for py_file in _py_files(BACKEND):
+        text = _read(py_file)
         for field in FORBIDDEN_FIELDS:
             # crude but deliberate: catches field defs, dict keys, kwargs
             if re.search(rf"['\"]?\b{field}\b['\"]?\s*[:=]", text):
@@ -43,8 +57,8 @@ def check_no_model_imports_in_scheduler():
         zone_dir = BACKEND / zone
         if not zone_dir.exists():
             continue
-        for py_file in zone_dir.rglob("*.py"):
-            text = py_file.read_text()
+        for py_file in _py_files(zone_dir):
+            text = _read(py_file)
             for lib in FORBIDDEN_IMPORTS:
                 if re.search(rf"^\s*(import|from)\s+{lib}\b", text, re.MULTILINE):
                     failures.append(f"[Rule 3] Model import '{lib}' found in {py_file.relative_to(BACKEND.parent)} (must stay model-free)")
@@ -53,7 +67,7 @@ def check_no_model_imports_in_scheduler():
 def check_ruleset_has_no_forbidden_keys():
     ruleset = BACKEND / "rulesets" / "ruleset.yaml"
     if ruleset.exists():
-        text = ruleset.read_text()
+        text = _read(ruleset)
         for field in FORBIDDEN_FIELDS:
             if re.search(rf"^\s*{field}\s*:", text, re.MULTILINE):
                 failures.append(f"[Rule 1] Forbidden key '{field}' found in ruleset.yaml")

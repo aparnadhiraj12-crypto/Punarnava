@@ -14,8 +14,8 @@ jobs:
           python-version: "3.11"
       - name: Install backend deps
         run: pip install -r backend/requirements.txt
-      - name: Run golden scheduler tests
-        run: python -m pytest backend/tests/golden/ -v
+      - name: Run backend tests
+        run: python -m pytest backend/tests -v
       - name: Run compliance audit
         run: python scripts/compliance_audit.py
 
