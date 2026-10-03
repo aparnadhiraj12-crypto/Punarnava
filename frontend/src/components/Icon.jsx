@@ -11,6 +11,7 @@ const PATHS = {
   user: <><circle cx="12" cy="8" r="4" /><path d="M5 21c.5-5 3-7 7-7s6.5 2 7 7" /></>,
   arrow: <><path d="m5 12 14 0M14 7l5 5-5 5" /></>,
   check: <path d="m5 12 4.5 4.5L19 7" />,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v6l4 2" /></>,
   phone: <path d="M7 3h10v18H7zM10 17h4" />,
   leaf: <><path d="M5 19c7-1 12-6 14-14-8 0-14 4-14 11v3Z" /><path d="M5 19c3-4 6-7 11-10" /></>,

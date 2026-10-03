@@ -218,6 +218,21 @@ fieldset.field-group legend { padding: 0 .4rem; font-size: .82rem; font-weight: 
 .preview-row > span.upcoming, .summary-journey span.upcoming { background: var(--soft-green); }
 .preview-row > span.na, .summary-journey span.na { background: var(--line); }
 .queue-actions { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: .9rem; margin-top: .1rem; }
+
+.patient-code-card { width: min(100%, 680px); margin: 1rem 0; padding: 1rem 1.2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--sage); border: 1px solid var(--green); }
+.patient-code-copy { min-width: 0; }
+.patient-code-copy > strong { display: block; margin-top: .3rem; color: var(--green-dark); font-family: "IBM Plex Mono", monospace; font-size: 1.3rem; }
+.patient-code-copy p { margin: .3rem 0 0; font-size: .78rem; }
+.patient-code-status { display: block; margin-top: .25rem; color: var(--green-dark); font-size: .75rem; }
+.patient-code-card.compact { width: fit-content; margin: .6rem 0 0; padding: .4rem .55rem; gap: .55rem; background: rgba(203, 220, 207, .55); border-color: var(--line); }
+.patient-code-card.compact .eyebrow { font-size: .58rem; }
+.patient-code-card.compact .patient-code-copy > strong { margin: 0; font-size: .78rem; }
+.patient-code-card.compact .button { min-height: 32px; padding: .3rem .45rem; font-size: .68rem; }
+
+@media (max-width: 600px) {
+  .patient-code-card { align-items: flex-start; flex-direction: column; }
+  .patient-code-card.compact { align-items: center; flex-direction: row; }
+}
 .queue-actions .visit-actions .row, .visit-actions .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
 .queue-person .tag-row { margin-top: .4rem; }
 .summary-section .citation { margin-top: .2rem; }

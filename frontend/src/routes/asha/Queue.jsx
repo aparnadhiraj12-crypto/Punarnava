@@ -13,6 +13,7 @@ import Badge from "../../components/Badge";
 import Button from "../../components/Button";
 import Icon from "../../components/Icon";
 import CouldNotGoReasons from "../../components/CouldNotGoReasons";
+import PatientCode from "../../components/PatientCode";
 import { Loading, Unreachable, EmptyState } from "../../components/Page";
 
 function StatusBadge({ online }) {
@@ -61,7 +62,7 @@ export default function Queue() {
           <strong>{women ? `${women.length} mother${women.length === 1 ? "" : "s"} to follow up` : "Loading…"}</strong>
           <span>{todayLong()}</span>
         </div>
-        <Link to="/m/enrol"><Button><Icon name="plus" /> Enrol a mother</Button></Link>
+        <Link to="/a/enrol"><Button><Icon name="plus" /> Enrol a mother</Button></Link>
       </div>
 
       {failed && <Unreachable onRetry={load} />}
@@ -87,6 +88,7 @@ export default function Queue() {
                     ))}
                   </ul>
                 )}
+                <PatientCode code={m.mother_code} compact />
               </div>
               <Badge tone={overdue ? "terra" : "sage"}>{overdue ? `${m.max_days_overdue} days overdue` : "Up to date"}</Badge>
 

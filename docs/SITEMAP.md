@@ -1,6 +1,6 @@
 # Sitemap
 
-One PWA, three role views (plus a public shell and a no-account shareable link).
+One PWA for mothers and ASHA workers, plus a separate clinician portal and a no-account shareable link.
 
 | Area   | Route                        | Status              | Journey |
 |--------|-------------------------------|----------------------|---------|
@@ -18,7 +18,11 @@ One PWA, three role views (plus a public shell and a no-account shareable link).
 | ASHA   | `/a/mother/:id/visit`           | stub (logic lives in `/a` two-tap handler for now) | J3 |
 | Clinic | `/c/handoff/:id`                | stub                 | J4 (v1) |
 | Clinic | `/c/recall`                     | stub                 | J5 (v1) |
+| Clinician | standalone app (`clinician-portal`, port 5174) | **built** | unique patient-code lookup and read-only history |
 | Shared | `/s/:token`                     | stub                 | handoff, no account needed |
+
+The clinician portal uses clinic/doctor sign-in and the protected
+`/api/record/lookup/{code}` endpoint. See the root README for local startup.
 
 ## What "built" means here
 

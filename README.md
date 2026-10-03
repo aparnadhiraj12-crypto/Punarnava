@@ -62,6 +62,17 @@ npm run dev
 ```
 Visit `/m` for the mother's timeline, `/a` for the ASHA queue.
 
+**Clinician portal:**
+```bash
+cd clinician-portal
+npm install
+npm run dev
+```
+Visit `http://localhost:5174`. Clinicians sign in with an existing clinic or
+doctor account, then look up a patient using her unique `PN-XXXXXX` code.
+Set `VITE_API_BASE` for a deployed API and configure
+`PUNARNAVA_CORS_ORIGINS` on the backend to include the portal's origin.
+
 ## Docs
 
 - `docs/SITEMAP.md` — full route table, what's built vs stub

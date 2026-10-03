@@ -15,6 +15,7 @@ import Icon from "../../components/Icon";
 import PageTitle from "../../components/PageTitle";
 import PixelArt from "../../components/PixelArt";
 import CouldNotGoReasons from "../../components/CouldNotGoReasons";
+import PatientCode from "../../components/PatientCode";
 import { Loading, Unreachable } from "../../components/Page";
 
 export default function Timeline() {
@@ -62,6 +63,8 @@ export default function Timeline() {
       {woman.incomplete && (
         <p className="form-error" style={{ marginBottom: "1.5rem" }}>Some details are missing, so this journey may be incomplete.</p>
       )}
+
+      <PatientCode code={woman.mother_code} />
 
       {woman.clinical_events?.length > 0 && (
         <ul className="tag-row">

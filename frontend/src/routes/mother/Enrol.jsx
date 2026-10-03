@@ -10,6 +10,7 @@ import Button from "../../components/Button";
 import Icon from "../../components/Icon";
 import VoiceInput from "../../components/VoiceInput";
 import PixelArt from "../../components/PixelArt";
+import PatientCode from "../../components/PatientCode";
 import { enrolMother, isNetworkError } from "../../lib/api";
 import { queueRequest } from "../../lib/offlineStore";
 
@@ -471,20 +472,25 @@ export default function Enrol() {
           </div>
           <p>
             {pendingSync
-              ? "This record is safely stored on this device and will sync when the connection returns. A Mother ID will be created after sync."
+              ? "This record is safely stored on this device and will sync when the connection returns. A unique patient code will be available after sync."
               : "Her care journey has started."}
           </p>
+          {!pendingSync && <PatientCode code={created.mother_code} />}
           <div className="button-row">
             {!pendingSync && created.id && (
               <Link to={`/m/${created.id}`}>
                 <Button>View journey</Button>
               </Link>
             )}
-            <Link to="/a">
-              <Button tone={pendingSync ? "primary" : "secondary"}>
-                See ASHA queue
-              </Button>
-            </Link>
+            {isAsha ? (
+              <Link to="/a">
+                <Button tone={pendingSync ? "primary" : "secondary"}>See ASHA queue</Button>
+              </Link>
+            ) : (
+              <Link to="/m">
+                <Button tone={pendingSync ? "primary" : "secondary"}>Go to your journey</Button>
+              </Link>
+            )}
           </div>
         </div>
       </AppShell>
