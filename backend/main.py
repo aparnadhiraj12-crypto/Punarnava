@@ -1,13 +1,3 @@
-"""
-PUNARNAVA v0 backend — single FastAPI app, four internal modules.
-
-Per the PRD: do not build microservices in a five-week part-time sprint.
-Module boundaries are kept honest (separate routers, separate files) so the
-split into real services remains available later. The one boundary that
-must never blur is scheduler <-> everything else: the scheduler stays
-deterministic and model-free (see scheduler/engine.py and
-scripts/compliance_audit.py).
-"""
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qsl, urlencode
 
@@ -121,7 +111,6 @@ app.include_router(scheduler_router, prefix="/api/scheduler", tags=["scheduler"]
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(wellness_router, prefix="/api/wellness", tags=["wellness"])
 app.include_router(outreach_router, prefix="/api/outreach", tags=["outreach"])
-app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(journal_router, prefix="/api/journal", tags=["journal"])
 app.include_router(safety_router, prefix="/api/safety", tags=["safety"])
 app.include_router(selfreport_router, prefix="/api/record", tags=["self-report"])

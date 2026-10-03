@@ -20,6 +20,7 @@ import VisitLog from "./routes/asha/VisitLog";
 import DoctorDashboard from "./routes/doctor/Dashboard";
 import MotherRecord from "./routes/doctor/MotherRecord";
 import Handoff from "./routes/clinic/Handoff";
+import FamilyView from "./routes/family/FamilyView";
 import Signup from "./routes/public/Signup";
 import PublicPage from "./routes/public/PublicPage";
 import Login from "./routes/public/Login";
@@ -185,7 +186,7 @@ export default function App() {
         <Route
           path="/d"
           element={
-            <RoleGuard allowedRoles={["doctor"]}>
+            <RoleGuard allowedRoles={["clinic"]}>
               <DoctorDashboard />
             </RoleGuard>
           }
@@ -194,23 +195,16 @@ export default function App() {
         <Route
           path="/d/mother/:uid"
           element={
-            <RoleGuard allowedRoles={["doctor"]}>
+            <RoleGuard allowedRoles={["clinic"]}>
               <MotherRecord />
             </RoleGuard>
           }
         />
 
-        <Route
-          path="/f"
-          element={
-            <RoleGuard allowedRoles={["family"]}>
-              <Stub
-                title="Family view"
-                note="Family sharing will be implemented later."
-              />
-            </RoleGuard>
-          }
-        />
+        {/* No RoleGuard: this is a shared link, same pattern as /c/handoff/:id and
+            /s/:token. The husband never logs in -- the grant_id in the URL IS his
+            access, and it works only while the mother has not revoked it. */}
+        <Route path="/f/:grantId" element={<FamilyView />} />
 
         <Route path="/c/handoff/:id" element={<Handoff />} />
         <Route path="/c/recall" element={<Stub title="Recall campaign" note="J5 - v1" />} />
