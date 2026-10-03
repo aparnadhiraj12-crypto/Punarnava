@@ -186,7 +186,7 @@ export default function App() {
         <Route
           path="/d"
           element={
-            <RoleGuard allowedRoles={["clinic"]}>
+            <RoleGuard allowedRoles={["doctor", "clinic"]}>
               <DoctorDashboard />
             </RoleGuard>
           }
@@ -195,7 +195,7 @@ export default function App() {
         <Route
           path="/d/mother/:uid"
           element={
-            <RoleGuard allowedRoles={["clinic"]}>
+            <RoleGuard allowedRoles={["doctor", "clinic"]}>
               <MotherRecord />
             </RoleGuard>
           }

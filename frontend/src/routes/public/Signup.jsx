@@ -80,12 +80,12 @@ export default function Signup() {
         </div>
 
         <form className="auth-form" onSubmit={submit}>
-          <Field label={role === "clinic" ? "Clinic name" : "Your name"}
-                 placeholder={role === "clinic" ? "e.g. Janani Health Centre" : "e.g. Lakshmi Rao"}
+          <Field label={role === "mother" ? "Your name" : "Clinic or practice name"}
+                 placeholder={role === "mother" ? "e.g. Lakshmi Rao" : "e.g. Janani Health Centre"}
                  value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
           <Field label="Phone or email" placeholder="+91 98765 43210" value={id}
                  onChange={(e) => setId(e.target.value)} required autoComplete="username" />
-          <Field label="Password (at least 4 characters)" type="password" minLength={4} value={pw}
+          <Field label="Password (at least 8 characters)" type="password" minLength={8} value={pw}
                  onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
 
           {role === "mother" && (
