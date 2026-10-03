@@ -4,6 +4,10 @@ const humanize = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpper
 
 const MILESTONES = {
   postnatal_visit: "Postnatal visit",
+  antenatal_visit_1: "Antenatal visit 1",
+  antenatal_visit_2: "Antenatal visit 2",
+  antenatal_visit_3: "Antenatal visit 3",
+  antenatal_visit_4: "Antenatal visit 4",
 };
 const EVENTS = {
   gestational_diabetes: "Gestational diabetes",
