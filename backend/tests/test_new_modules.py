@@ -813,3 +813,25 @@ def test_handoff_link_gives_a_clinic_the_report_without_an_account(monkeypatch):
     assert client.get("/api/report/shared/not-a-real-link").status_code == 404
     report_router._HANDOFF[link]["expires_at"] = 0
     assert client.get(f"/api/report/shared/{link}").status_code == 404
+
+
+# ---- doctor / clinic accounts need the server's invite code ----
+
+def test_doctor_signup_needs_the_invite_code(monkeypatch):
+    monkeypatch.setenv("PUNARNAVA_STAFF_SIGNUP_OPEN", "0")
+    monkeypatch.setenv("PUNARNAVA_STAFF_INVITE_CODE", "let-me-in-123")
+    base = {"role": "doctor", "phone_or_email": "invite-doc@test.com", "password": "password8", "name": "Dr Invite"}
+    assert client.post("/api/auth/signup", json=base).status_code == 403
+    assert client.post("/api/auth/signup", json=dict(base, invite_code="wrong")).status_code == 403
+    ok = client.post("/api/auth/signup", json=dict(base, invite_code="let-me-in-123"))
+    assert ok.status_code == 200 and ok.json()["role"] == "doctor"
+    asha = dict(base, role="asha", phone_or_email="invite-asha@test.com")
+    assert client.post("/api/auth/signup", json=asha).status_code == 200
+
+
+def test_staff_signup_is_closed_when_no_invite_code_is_configured(monkeypatch):
+    monkeypatch.setenv("PUNARNAVA_STAFF_SIGNUP_OPEN", "0")
+    monkeypatch.delenv("PUNARNAVA_STAFF_INVITE_CODE", raising=False)
+    body = {"role": "clinic", "phone_or_email": "closed-clinic@test.com", "password": "password8",
+            "name": "Closed", "invite_code": ""}
+    assert client.post("/api/auth/signup", json=body).status_code == 403

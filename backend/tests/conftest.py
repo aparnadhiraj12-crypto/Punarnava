@@ -7,3 +7,6 @@ os.environ.setdefault("PUNARNAVA_ALLOW_QUERY_TOKENS", "1")
 
 # Existing tests must not write a database file; persistence has its own tests.
 os.environ.setdefault("PUNARNAVA_DB_PATH", "")
+
+# Test runs only: staff signup is open. A real server leaves this unset.
+os.environ.setdefault("PUNARNAVA_STAFF_SIGNUP_OPEN", "1")

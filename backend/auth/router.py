@@ -67,6 +67,8 @@ class SignupRequest(BaseModel):
     # only used when role == "mother"; ignored for asha/clinic
     delivery_date: Optional[date] = None
     mode_of_delivery: Optional[str] = None
+    # only for role doctor / clinic: the code the Punarnava team set on the server
+    invite_code: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -84,6 +86,11 @@ class AuthResponse(BaseModel):
 def signup(req: SignupRequest):
     if req.role not in ROLES:
         raise HTTPException(400, f"role must be one of {ROLES}")
+    if req.role in ("doctor", "clinic") and os.environ.get("PUNARNAVA_STAFF_SIGNUP_OPEN") != "1":
+        expected = os.environ.get("PUNARNAVA_STAFF_INVITE_CODE", "")
+        given = req.invite_code or ""
+        if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
+            raise HTTPException(403, "doctor and clinic accounts need an invite code from the Punarnava team")
     if req.phone_or_email in _BY_CONTACT:
         raise HTTPException(409, "an account with this phone/email already exists")
     if len(req.password) < _MIN_PASSWORD_LENGTH:
