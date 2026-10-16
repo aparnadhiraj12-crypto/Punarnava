@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getWoman } from "../../lib/api";
+import { lookupWomanByCode } from "../../lib/api";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import Button from "../../components/Button";
@@ -26,8 +26,14 @@ export default function Dashboard() {
     setError("");
 
     try {
-      await getWoman(id);
-      navigate(`/d/mother/${encodeURIComponent(id)}`);
+      const result = await lookupWomanByCode(id);
+      const woman = result?.woman ?? result;
+
+      if (!woman?.id) {
+        throw new Error("The lookup did not return a patient record.");
+      }
+
+      navigate(`/d/mother/${encodeURIComponent(woman.id)}`);
     } catch (err) {
       setError(
         err?.status === 404

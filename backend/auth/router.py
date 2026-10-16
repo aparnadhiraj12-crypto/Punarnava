@@ -172,6 +172,34 @@ def get_current_user(token: str) -> Optional[dict]:
     return session
 
 
+DEMO_PASSWORD = "demo-password-1"  # development only: never seeded unless PUNARNAVA_SEED_DEMO=1
+
+
+def seed_demo_accounts() -> None:
+    """Dev/demo only. Gives every laptop the same three logins, so a team can
+    test without sharing a server. Safe to call repeatedly."""
+    accounts = [
+        ("mother", "mother@demo.in", "Lakshmi (demo)", "demo-lakshmi"),
+        ("asha", "asha@demo.in", "Demo ASHA", "asha-demo"),
+        ("doctor", "doctor@demo.in", "Dr Demo", "doctor-demo"),
+    ]
+    for role, contact, name, linked_id in accounts:
+        if contact in _BY_CONTACT:
+            continue
+        salt = os.urandom(16)
+        user_id = str(uuid.uuid4())
+        _USERS[user_id] = {
+            "id": user_id,
+            "role": role,
+            "phone_or_email": contact,
+            "password_hash": _hash_password(DEMO_PASSWORD, salt),
+            "salt": salt.hex(),
+            "name": name,
+            "linked_id": linked_id,
+        }
+        _BY_CONTACT[contact] = user_id
+
+
 def cleanup_expired_tokens(now: Optional[float] = None) -> int:
     """Remove expired or unverifiable persisted sessions; return the count."""
     current_time = time.time() if now is None else now

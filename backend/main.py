@@ -23,11 +23,11 @@ from family.router import router as family_router
 from report.router import router as report_router
 
 import persistence
-from auth.router import _USERS, _TOKENS, _BY_CONTACT, cleanup_expired_tokens
+from auth.router import _USERS, _TOKENS, _BY_CONTACT, cleanup_expired_tokens, seed_demo_accounts
 from journal.router import _ENTRIES as _JOURNAL_ENTRIES, _SHARED_WITH_DOCTOR
 from selfreport.router import _ENTRIES as _SELFREPORT_ENTRIES
 from record.router import _WOMEN, _COMPLETIONS, _INTERACTIONS, _VISITS
-from clinical.router import _PRESCRIBED
+from clinical.router import _PRESCRIBED, _BP_READINGS
 from wellness.router import _TASTE_PREFS, _SAVED_PLANS
 from family.router import _GRANTS
 from report.router import _HANDOFF
@@ -45,6 +45,7 @@ persistence.register("record.completions", _COMPLETIONS)
 persistence.register("record.interactions", _INTERACTIONS)
 persistence.register("record.visits", _VISITS)
 persistence.register("clinical.prescribed", _PRESCRIBED)
+persistence.register("clinical.bp", _BP_READINGS)
 persistence.register("wellness.taste_prefs", _TASTE_PREFS)
 persistence.register("wellness.saved_plans", _SAVED_PLANS)
 persistence.register("family.grants", _GRANTS)
@@ -125,9 +126,13 @@ def health():
 
 
 def _seed(record, fixed_id):
-    """Create a demo mother only if she isn't already there."""
+    """Create a demo mother only if she isn't already there. Demo mothers
+    keep the same short code on every laptop."""
     if fixed_id not in _WOMEN:
         create_woman(record, fixed_id=fixed_id)
+    elif record.mother_code and _WOMEN[fixed_id].get("mother_code") != record.mother_code:
+        if not any(w.get("mother_code") == record.mother_code for w in _WOMEN.values()):
+            _WOMEN[fixed_id]["mother_code"] = record.mother_code
 
 
 def seed_demo_data():
@@ -138,6 +143,7 @@ def seed_demo_data():
     _seed(
         WomanRecord(
             name="Lakshmi",
+            mother_code="PN-LAKSH1",
             language="te",
             delivery_date=date.today() - timedelta(days=44),
             mode_of_delivery="LSCS",
@@ -153,6 +159,7 @@ def seed_demo_data():
     _seed(
         WomanRecord(
             name="Radha", language="te",
+            mother_code="PN-RADHA1",
             delivery_date=date.today() - timedelta(days=30),
             mode_of_delivery="normal",
             clinical_events=[ClinicalEvent(type="hypertensive_in_pregnancy")],
@@ -162,10 +169,14 @@ def seed_demo_data():
     _seed(
         WomanRecord(
             name="Saroja", language="te",
+            mother_code="PN-SAROJA",
             delivery_date=date.today() - timedelta(days=8),
             mode_of_delivery="normal",
             clinical_events=[],
         ),
         fixed_id="demo-saroja",
     )
+    for demo_id in ("demo-lakshmi", "demo-radha", "demo-saroja"):
+        _WOMEN[demo_id].setdefault("assigned_asha", "asha-demo")
+    seed_demo_accounts()
     persistence.save_changed()

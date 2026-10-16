@@ -835,3 +835,31 @@ def test_staff_signup_is_closed_when_no_invite_code_is_configured(monkeypatch):
     body = {"role": "clinic", "phone_or_email": "closed-clinic@test.com", "password": "password8",
             "name": "Closed", "invite_code": ""}
     assert client.post("/api/auth/signup", json=body).status_code == 403
+
+
+# ---- the dev seed: same mothers, codes and logins on every laptop ----
+
+def test_demo_seed_gives_every_laptop_the_same_ids_and_logins(monkeypatch):
+    import auth.router as auth
+    from main import app
+    from record.router import _WOMEN
+    demo_ids = ["demo-lakshmi", "demo-radha", "demo-saroja"]
+    try:
+        monkeypatch.setenv("PUNARNAVA_SEED_DEMO", "1")
+        with TestClient(app) as c:
+            assert [_WOMEN[i]["mother_code"] for i in demo_ids] == ["PN-LAKSH1", "PN-RADHA1", "PN-SAROJA"]
+            doc = c.post("/api/auth/login", json={"phone_or_email": "doctor@demo.in", "password": auth.DEMO_PASSWORD})
+            assert doc.status_code == 200 and doc.json()["role"] == "doctor"
+            h = {"Authorization": "Bearer " + doc.json()["token"]}
+            assert c.get("/api/record/women/PN-LAKSH1", headers=h).json()["id"] == "demo-lakshmi"
+            asha = c.post("/api/auth/login", json={"phone_or_email": "asha@demo.in", "password": auth.DEMO_PASSWORD})
+            assert asha.status_code == 200
+            ah = {"Authorization": "Bearer " + asha.json()["token"]}
+            assert set(demo_ids) <= {w["id"] for w in c.get("/api/record/women", headers=ah).json()}
+    finally:
+        for demo_id in demo_ids:
+            _WOMEN.pop(demo_id, None)
+        for contact in ("mother@demo.in", "asha@demo.in", "doctor@demo.in"):
+            uid = auth._BY_CONTACT.pop(contact, None)
+            if uid:
+                auth._USERS.pop(uid, None)
