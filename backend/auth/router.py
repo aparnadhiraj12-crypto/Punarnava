@@ -18,6 +18,8 @@ should ask for the delivery date at signup so this is the exception.
 A mother who says she is still pregnant (pregnancy_status="pregnant") gets
 a record with no delivery date and, if she knows it, a pregnancy start date.
 ASHA and clinic accounts get a placeholder id, since they have no record.
+Staff accounts (ASHA, doctor, clinic) are issued by the Punarnava team: signup
+for those roles needs the invite code set in PUNARNAVA_STAFF_INVITE_CODE.
 
 What this deliberately is NOT: production-grade auth. Passwords are salted
 and hashed (PBKDF2, stdlib only, no new dependency); OTP and password reset
@@ -72,7 +74,7 @@ class SignupRequest(BaseModel):
     # "pregnant" or "delivered", sent by the mother at signup
     pregnancy_status: Optional[str] = None
     pregnancy_start_date: Optional[date] = None  # entered as told, never inferred
-    # only for role doctor / clinic: the code the Punarnava team set on the server
+    # only for role doctor / clinic / asha: the code the Punarnava team set on the server
     invite_code: Optional[str] = None
 
 
@@ -91,11 +93,11 @@ class AuthResponse(BaseModel):
 def signup(req: SignupRequest):
     if req.role not in ROLES:
         raise HTTPException(400, f"role must be one of {ROLES}")
-    if req.role in ("doctor", "clinic") and os.environ.get("PUNARNAVA_STAFF_SIGNUP_OPEN") != "1":
+    if req.role in ("doctor", "clinic", "asha") and os.environ.get("PUNARNAVA_STAFF_SIGNUP_OPEN") != "1":
         expected = os.environ.get("PUNARNAVA_STAFF_INVITE_CODE", "")
         given = req.invite_code or ""
         if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
-            raise HTTPException(403, "doctor and clinic accounts need an invite code from the Punarnava team")
+            raise HTTPException(403, "doctor, clinic and ASHA accounts need an invite code from the Punarnava team")
     if req.pregnancy_status not in (None, "pregnant", "delivered"):
         raise HTTPException(400, "pregnancy_status must be 'pregnant' or 'delivered'")
     if req.pregnancy_start_date and req.pregnancy_start_date > date.today():
