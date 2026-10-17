@@ -8,6 +8,8 @@ import Badge from "../../components/Badge";
 import Button from "../../components/Button";
 import Icon from "../../components/Icon";
 import DoctorUpdates from "../../components/DoctorUpdates";
+import PatientCode from "../../components/PatientCode";
+import { eventLabel } from "../../lib/labels";
 import { Loading, Unreachable } from "../../components/Page";
 
 function formatDate(value) {
@@ -18,6 +20,12 @@ function formatDate(value) {
     year: "numeric",
   });
 }
+
+const LANGUAGE_NAMES = {
+  en: "English", hi: "Hindi", te: "Telugu", ta: "Tamil", kn: "Kannada", ml: "Malayalam",
+  mr: "Marathi", bn: "Bengali", gu: "Gujarati", pa: "Punjabi", or: "Odia", as: "Assamese", ur: "Urdu",
+};
+const languageName = (code) => LANGUAGE_NAMES[String(code).toLowerCase()] ?? String(code).toUpperCase();
 
 export default function MotherDetail() {
   const { id } = useParams();
@@ -68,7 +76,7 @@ export default function MotherDetail() {
       <PageTitle
         eyebrow="ASHA · Mother record"
         title={woman.name}
-        copy="A clear view of the continuity record and recent visit history."
+        copy="What her doctor will see, plus the visits you have logged."
       />
 
       <section className="profile-card">
@@ -79,25 +87,23 @@ export default function MotherDetail() {
 
           <div className="tag-row">
             {woman.age != null && <Badge>{woman.age} years</Badge>}
-            {woman.language && <Badge>{woman.language.toUpperCase()}</Badge>}
+            {woman.language && <Badge>{languageName(woman.language)}</Badge>}
             {woman.postpartum_day != null && (
               <Badge tone="sage">
                 Day {woman.postpartum_day} postpartum
               </Badge>
             )}
+            {woman.trimester != null && (
+              <Badge tone="sage">Trimester {woman.trimester}</Badge>
+            )}
+            {woman.incomplete && <Badge tone="mustard">Details incomplete</Badge>}
           </div>
         </div>
       </section>
 
-      <section className="detail-grid">
-        <article className="form-card">
-          <div className="eyebrow">Mother ID</div>
-          <div className="display display-sm">{woman.id}</div>
-          <p className="muted">
-            Use this ID when coordinating with the clinic.
-          </p>
-        </article>
+      <PatientCode code={woman.mother_code} />
 
+      <section className="detail-grid">
         <article className="form-card">
           <div className="eyebrow">Pregnancy & delivery</div>
 
@@ -115,6 +121,16 @@ export default function MotherDetail() {
             <div>
               <dt>Mode</dt>
               <dd>{woman.mode_of_delivery || "—"}</dd>
+            </div>
+
+            <div>
+              <dt>Estimated due date</dt>
+              <dd>{formatDate(woman.estimated_due_date)}</dd>
+            </div>
+
+            <div>
+              <dt>Discharge haemoglobin</dt>
+              <dd>{woman.discharge_hb != null ? `${woman.discharge_hb} g/dL` : "—"}</dd>
             </div>
           </dl>
         </article>
@@ -142,7 +158,7 @@ export default function MotherDetail() {
             <ul className="tag-row">
               {woman.clinical_events.map((event, index) => (
                 <li key={`${event.type}-${index}`}>
-                  <Badge>{event.type}</Badge>
+                  <Badge>{eventLabel(event.type)}</Badge>
                 </li>
               ))}
             </ul>
@@ -164,7 +180,7 @@ export default function MotherDetail() {
       </section>
 
       <DoctorUpdates womanId={id} audience="asha" />
-      
+
       <section className="section-block">
         <div className="section-heading">
           <div>
