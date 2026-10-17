@@ -44,12 +44,16 @@ export default function Login() {
         </div>
         <form className="auth-form" onSubmit={submit}>
           <Field label="Phone or email" placeholder="+91 98765 43210" value={id}
-                 onChange={(e) => setId(e.target.value)} required autoComplete="username" />
+            onChange={(e) => setId(e.target.value)} required autoComplete="username" />
           <Field label="Password" type="password" placeholder="Enter your password" value={pw}
-                 onChange={(e) => setPw(e.target.value)} required autoComplete="current-password" />
+            onChange={(e) => setPw(e.target.value)} required autoComplete="current-password" />
           {error && <p role="alert" className="form-error">{error}</p>}
           <Button type="submit" disabled={busy}>{busy ? "Logging in…" : "Log in"}</Button>
         </form>
+        <p className="section-note">
+          ASHA worker or health centre staff? Log in above with the email and password your health centre gave you.
+        </p>
+
         <div className="auth-switch">
           New to Punarnava?
           <Link to="/signup"><Button tone="quiet">Create an account</Button></Link>

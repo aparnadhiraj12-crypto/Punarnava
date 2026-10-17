@@ -103,26 +103,26 @@ export default function Signup() {
 
         <form className="auth-form" onSubmit={submit}>
           <Field label="Your name" placeholder="e.g. Lakshmi Rao"
-                 value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+            value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
           <Field label="Phone or email" placeholder="+91 98765 43210" value={id}
-                 onChange={(e) => setId(e.target.value)} required autoComplete="username" />
+            onChange={(e) => setId(e.target.value)} required autoComplete="username" />
           <Field label="Password (at least 8 characters)" type="password" minLength={8} value={pw}
-                 onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
+            onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
 
           {status === "pregnant" && (
             <>
               <Field label="First day of your last period (optional)" type="date" value={start}
-                     max={todayLocal()} onChange={(e) => setStart(e.target.value)} />
-              <p className="section-note">Not sure? Leave it empty. Your ASHA or doctor can add it later.</p>
+                max={todayLocal()} onChange={(e) => setStart(e.target.value)} />
+              <p className="section-note">Not sure? You can leave it empty.</p>
             </>
           )}
 
           {status === "delivered" && (
             <>
               <Field label="Delivery date" type="date" value={delivery}
-                     max={todayLocal()} onChange={(e) => setDelivery(e.target.value)} required />
+                max={todayLocal()} onChange={(e) => setDelivery(e.target.value)} required />
               <SelectField label="Mode of delivery (optional)" value={mode} onChange={(e) => setMode(e.target.value)}
-                           options={[["", "Not sure"], ["normal", "Normal"], ["LSCS", "C-section (LSCS)"], ["assisted", "Assisted"]]} />
+                options={[["", "Not sure"], ["normal", "Normal"], ["LSCS", "C-section (LSCS)"], ["assisted", "Assisted"]]} />
             </>
           )}
 
