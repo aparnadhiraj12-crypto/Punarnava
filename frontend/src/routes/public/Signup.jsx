@@ -1,5 +1,7 @@
-// /signup - role picker (mother / ASHA / clinic) + fields, matching the redesign's
-// auth-panel layout. Field names follow POST /api/auth/signup exactly (guide 2.2).
+// /signup - mothers only. ASHA, doctor and clinic accounts are created by the
+// Punarnava team and use the normal Log in page. A mother says whether she is
+// pregnant or has recently given birth, and the form asks only what fits.
+// Field names follow POST /api/auth/signup (guide 2.2).
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Brand from "../../components/Brand";
@@ -11,17 +13,25 @@ import { signup } from "../../lib/api";
 import { saveSession, homeFor } from "../../lib/session";
 import { friendlyAuthError } from "../../lib/errors";
 
-const ROLES = [
-  { id: "mother", label: "Mother", icon: "heart" },
-  { id: "asha", label: "ASHA", icon: "people" }
+const STATUSES = [
+  { id: "pregnant", label: "I'm pregnant", icon: "heart" },
+  { id: "delivered", label: "I recently gave birth", icon: "leaf" },
 ];
+
+// Today as YYYY-MM-DD in the phone's own time zone, used to stop future dates.
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
 export default function Signup() {
   const nav = useNavigate();
-  const [role, setRole] = useState("mother");
+  const [status, setStatus] = useState(""); // "pregnant" | "delivered" | "" (not chosen yet)
   const [name, setName] = useState("");
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
+  const [start, setStart] = useState("");
   const [delivery, setDelivery] = useState("");
   const [mode, setMode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,11 +39,23 @@ export default function Signup() {
 
   async function submit(e) {
     e.preventDefault();
+    if (!status) {
+      setError("Please choose whether you are pregnant or have recently given birth.");
+      return;
+    }
     setBusy(true);
     setError("");
-    const payload = { role, name: name.trim(), phone_or_email: id.trim(), password: pw };
-    if (role === "mother") {
-      if (delivery) payload.delivery_date = delivery;
+    const payload = {
+      role: "mother",
+      name: name.trim(),
+      phone_or_email: id.trim(),
+      password: pw,
+      pregnancy_status: status,
+    };
+    if (status === "pregnant") {
+      if (start) payload.pregnancy_start_date = start;
+    } else {
+      payload.delivery_date = delivery;
       if (mode) payload.mode_of_delivery = mode;
     }
     try {
@@ -54,22 +76,22 @@ export default function Signup() {
         <div className="auth-copy">
           <div className="eyebrow">Your care record begins here</div>
           <div className="display display-lg">Let's get you started.</div>
-          <p>Choose how you'll use Punarnava.</p>
+          <p>Tell us where you are in your journey.</p>
         </div>
 
-        <div className="role-picker" role="radiogroup" aria-label="I am a">
-          {ROLES.map((r) => (
+        <div className="role-picker" role="radiogroup" aria-label="Where are you in your journey?">
+          {STATUSES.map((s) => (
             <button
-              key={r.id}
+              key={s.id}
               type="button"
               role="radio"
-              aria-checked={role === r.id}
-              onClick={() => setRole(r.id)}
-              className={role === r.id ? "role active" : "role"}
+              aria-checked={status === s.id}
+              onClick={() => { setStatus(s.id); setError(""); }}
+              className={status === s.id ? "role active" : "role"}
             >
-              <Icon name={r.icon} />
-              <span>I'm a{r.id === "asha" ? "n" : ""} {r.label.toLowerCase()}</span>
-              {role === r.id && <Icon name="check" />}
+              <Icon name={s.icon} />
+              <span>{s.label}</span>
+              {status === s.id && <Icon name="check" />}
             </button>
           ))}
         </div>
@@ -80,18 +102,25 @@ export default function Signup() {
         </div>
 
         <form className="auth-form" onSubmit={submit}>
-          <Field label={role === "mother" ? "Your name" : "Clinic or practice name"}
-                 placeholder={role === "mother" ? "e.g. Lakshmi Rao" : "e.g. Janani Health Centre"}
+          <Field label="Your name" placeholder="e.g. Lakshmi Rao"
                  value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
           <Field label="Phone or email" placeholder="+91 98765 43210" value={id}
                  onChange={(e) => setId(e.target.value)} required autoComplete="username" />
           <Field label="Password (at least 8 characters)" type="password" minLength={8} value={pw}
                  onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
 
-          {role === "mother" && (
+          {status === "pregnant" && (
+            <>
+              <Field label="First day of your last period (optional)" type="date" value={start}
+                     max={todayLocal()} onChange={(e) => setStart(e.target.value)} />
+              <p className="section-note">Not sure? Leave it empty. Your ASHA or doctor can add it later.</p>
+            </>
+          )}
+
+          {status === "delivered" && (
             <>
               <Field label="Delivery date" type="date" value={delivery}
-                     onChange={(e) => setDelivery(e.target.value)} required />
+                     max={todayLocal()} onChange={(e) => setDelivery(e.target.value)} required />
               <SelectField label="Mode of delivery (optional)" value={mode} onChange={(e) => setMode(e.target.value)}
                            options={[["", "Not sure"], ["normal", "Normal"], ["LSCS", "C-section (LSCS)"], ["assisted", "Assisted"]]} />
             </>
@@ -107,7 +136,7 @@ export default function Signup() {
         </div>
       </section>
       <aside className="auth-illustration">
-        <PixelArt kind={role === "mother" ? "mother" : role === "asha" ? "worker" : "clinic"} />
+        <PixelArt kind="mother" />
         <p>"A health record that never closes."</p>
       </aside>
     </main>

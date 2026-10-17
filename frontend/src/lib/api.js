@@ -104,6 +104,11 @@ export function getMedications(womanId) {
   return send("GET", `/clinical/medication/${womanId}`);
 }
 
+// Blood-pressure readings a doctor typed in on the clinician website.
+export function getBpReadings(womanId) {
+  return send("GET", `/clinical/bp/${encodeURIComponent(womanId)}`);
+}
+
 export function getMotherReport(womanId) {
   return send("GET", `/report/${womanId}`);
 }

@@ -245,8 +245,14 @@ function Home() {
           <div className="display display-xl">Your health journey<br />doesn't end here.</div>
           <p className="lead">Punarnava keeps your postpartum care connected — from one visit to the next.</p>
           <div className="button-row">
-            <Link to="/m"><Button>Mother view <Icon name="arrow" /></Button></Link>
-            <Link to="/a"><Button tone="secondary">ASHA view</Button></Link>
+            {loggedIn ? (
+              <Link to={homeFor(role, linkedId)}><Button>Go to my page <Icon name="arrow" /></Button></Link>
+            ) : (
+              <>
+                <Link to="/login"><Button>Log in <Icon name="arrow" /></Button></Link>
+                <Link to="/signup"><Button tone="secondary">New mother? Create account</Button></Link>
+              </>
+            )}
           </div>
           <div className="trust-line">
             <Icon name="shield" />

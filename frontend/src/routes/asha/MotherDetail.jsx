@@ -7,6 +7,7 @@ import Avatar from "../../components/Avatar";
 import Badge from "../../components/Badge";
 import Button from "../../components/Button";
 import Icon from "../../components/Icon";
+import DoctorUpdates from "../../components/DoctorUpdates";
 import { Loading, Unreachable } from "../../components/Page";
 
 function formatDate(value) {
@@ -162,6 +163,8 @@ export default function MotherDetail() {
         </article>
       </section>
 
+      <DoctorUpdates womanId={id} audience="asha" />
+      
       <section className="section-block">
         <div className="section-heading">
           <div>

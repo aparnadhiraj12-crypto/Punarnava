@@ -563,3 +563,13 @@ fieldset.field-group legend { padding: 0 .4rem; font-size: .82rem; font-weight: 
     min-height: 0;
   }
 }
+
+
+/* ---- From your doctor (components/DoctorUpdates.jsx) ---- */
+.doctor-updates { margin: 1.6rem 0; }
+.du-heading { margin: 1.1rem 0 .2rem; font-size: 1rem; }
+.du-list { list-style: none; margin: 0; padding: 0; }
+.du-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: .8rem 0; border-top: 1px solid var(--line); }
+.du-list li > div { display: grid; gap: .15rem; }
+.du-list span { color: var(--ink); font-size: .92rem; }
+.du-list small { color: var(--muted); font-size: .78rem; }

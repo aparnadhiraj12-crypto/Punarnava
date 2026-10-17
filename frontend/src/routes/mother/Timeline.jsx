@@ -16,6 +16,7 @@ import PageTitle from "../../components/PageTitle";
 import PixelArt from "../../components/PixelArt";
 import CouldNotGoReasons from "../../components/CouldNotGoReasons";
 import PatientCode from "../../components/PatientCode";
+import DoctorUpdates from "../../components/DoctorUpdates";
 import { Loading, Unreachable } from "../../components/Page";
 
 export default function Timeline() {
@@ -127,6 +128,8 @@ export default function Timeline() {
           <div className="progress-track"><span style={{ width: `${pct}%` }} /></div>
         </div>
       )}
+
+      <DoctorUpdates womanId={womanId} />
 
       <section className="timeline">
         <div className="timeline-rule" />
