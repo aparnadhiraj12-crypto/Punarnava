@@ -177,6 +177,7 @@ def seed_demo_data():
         fixed_id="demo-saroja",
     )
     for demo_id in ("demo-lakshmi", "demo-radha", "demo-saroja"):
-        _WOMEN[demo_id].setdefault("assigned_asha", "asha-demo")
+        if not _WOMEN[demo_id].get("assigned_asha"):
+            _WOMEN[demo_id]["assigned_asha"] = "asha-demo"
     seed_demo_accounts()
     persistence.save_changed()
