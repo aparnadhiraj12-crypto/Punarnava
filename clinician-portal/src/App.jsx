@@ -90,6 +90,10 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [authMode, setAuthMode] = useState("signin");
+  const [signupRole, setSignupRole] = useState("doctor");
+  const [fullName, setFullName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [code, setCode] = useState("");
   const [patient, setPatient] = useState(null);
   const [history, setHistory] = useState(null);
@@ -97,15 +101,26 @@ export default function App() {
   const [lookupError, setLookupError] = useState("");
   const [historyNotice, setHistoryNotice] = useState("");
 
+  function switchAuthMode(next) {
+    if (loginBusy) return;
+    setAuthMode(next);
+    setLoginError("");
+    setPassword("");
+  }
+
   async function signIn(event) {
     event.preventDefault();
     setLoginBusy(true);
     setLoginError("");
+    const creating = authMode === "signup";
     try {
-      const result = await request("/auth/login", {
-        method: "POST",
-        body: { phone_or_email: contact.trim(), password },
-      });
+      const body = { phone_or_email: contact.trim(), password };
+      if (creating) {
+        body.role = signupRole;
+        body.name = fullName.trim();
+        if (inviteCode.trim()) body.invite_code = inviteCode.trim();
+      }
+      const result = await request(creating ? "/auth/signup" : "/auth/login", { method: "POST", body });
       if (!["clinic", "doctor"].includes(result.role)) {
         await request("/auth/logout", { method: "POST", token: result.token }).catch(() => {});
         throw new Error("Use a clinic or doctor account to access this portal.");
@@ -114,8 +129,9 @@ export default function App() {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(clinicianSession));
       setSession(clinicianSession);
       setPassword("");
+      setInviteCode("");
     } catch (error) {
-      setLoginError(error?.status === 401 ? (error.message || "Incorrect phone/email or password.") : errorMessage(error));
+      setLoginError(error?.status === 401 || (creating && error?.status && error.status < 500 && error.status !== 429) ? (error.message || "Incorrect phone/email or password.") : errorMessage(error));
     } finally {
       setLoginBusy(false);
     }
@@ -188,18 +204,41 @@ export default function App() {
             <div className="privacy-line"><span className="status-dot" /> Restricted to clinic and doctor accounts</div>
           </section>
           <form className="sign-in-form" onSubmit={signIn}>
+            <div className="auth-tabs" role="tablist" aria-label="Account access">
+              <button type="button" role="tab" aria-selected={authMode === "signin"} className={`auth-tab${authMode === "signin" ? " active" : ""}`} onClick={() => switchAuthMode("signin")}>Sign in</button>
+              <button type="button" role="tab" aria-selected={authMode === "signup"} className={`auth-tab${authMode === "signup" ? " active" : ""}`} onClick={() => switchAuthMode("signup")}>Create account</button>
+            </div>
+            {authMode === "signin" && <p className="credentials-note">Use the email ID and password given to you by your clinic.</p>}
             <div className="form-heading">
               <p className="eyebrow">Clinician access</p>
-              <h2>Sign in</h2>
-              <p>Use your registered clinic or doctor account.</p>
+              <h2>{authMode === "signin" ? "Sign in" : "Create account"}</h2>
+              <p>{authMode === "signin" ? "Use your registered clinic or doctor account." : "Register a new doctor or clinic account."}</p>
             </div>
+            {authMode === "signup" && (
+              <>
+                <span className="field-label" id="role-label">I am a</span>
+                <div className="role-toggle" role="radiogroup" aria-labelledby="role-label">
+                  {[["doctor", "Doctor"], ["clinic", "Clinic"]].map(([id, text]) => (
+                    <button key={id} type="button" role="radio" aria-checked={signupRole === id} className={`role-option${signupRole === id ? " active" : ""}`} onClick={() => setSignupRole(id)}>{text}</button>
+                  ))}
+                </div>
+                <label className="field-label" htmlFor="full-name">{signupRole === "clinic" ? "Clinic name" : "Your name"}</label>
+                <input id="full-name" type="text" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder={signupRole === "clinic" ? "e.g. Janani Health Centre" : "e.g. Dr. Meera Rao"} required />
+              </>
+            )}
             <label className="field-label" htmlFor="contact">Phone or email</label>
             <input id="contact" type="text" autoComplete="username" value={contact} onChange={(event) => setContact(event.target.value)} required />
-            <label className="field-label" htmlFor="password">Password</label>
-            <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+            <label className="field-label" htmlFor="password">Password{authMode === "signup" ? " (at least 4 characters)" : ""}</label>
+            <input id="password" type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={authMode === "signup" ? 4 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} required />
+            {authMode === "signup" && (
+              <>
+                <label className="field-label" htmlFor="invite-code">Staff invite code{signupRole === "doctor" ? "" : " (if your team gave you one)"}</label>
+                <input id="invite-code" type="text" autoComplete="off" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required={signupRole === "doctor"} />
+              </>
+            )}
             {loginError && <p className="error-message" role="alert">{loginError}</p>}
-            <button className="primary-button" type="submit" disabled={loginBusy}>{loginBusy ? "Signing in…" : "Sign in to records"}<span aria-hidden="true">→</span></button>
-            <p className="form-footnote">Patient information is available only after sign-in.</p>
+            <button className="primary-button" type="submit" disabled={loginBusy}>{loginBusy ? (authMode === "signin" ? "Signing in…" : "Creating account…") : (authMode === "signin" ? "Sign in to records" : "Create account")}<span aria-hidden="true">→</span></button>
+            <p className="form-footnote">{authMode === "signin" ? "New here? Choose “Create account” above." : "Patient information is available only after sign-in."}</p>
           </form>
         </div>
         <footer className="page-footer"><span>PUNARNAVA</span><span>Maternal care continuity</span></footer>

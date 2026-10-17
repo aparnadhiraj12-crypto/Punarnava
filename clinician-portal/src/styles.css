@@ -154,6 +154,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .required-mark { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 9px; font-weight: 400; text-transform: uppercase; }
 .entry-submit { margin-top: 20px; min-width: 180px; }
 .success-message { margin: 13px 0 0; padding: 10px 12px; color: var(--green-dark); background: #e5efe7; border-left: 3px solid var(--green); font-size: 12px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 24px; border-bottom: 1px solid #e6ebe5; }
+.auth-tab { padding: 10px 0; background: transparent; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.auth-tab.active { color: var(--green-dark); border-bottom-color: var(--green); }
+.role-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.role-option { height: 44px; background: white; border: 1px solid #cbd7ce; border-radius: 2px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.role-option.active { color: white; background: var(--green); border-color: var(--green); }
+.credentials-note { margin: 0 0 22px; padding: 11px 13px; color: var(--green-dark); background: #e5efe7; border-left: 3px solid var(--green); font-size: 12px; line-height: 1.5; }
 @keyframes arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
