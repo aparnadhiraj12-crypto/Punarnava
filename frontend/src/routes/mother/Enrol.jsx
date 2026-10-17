@@ -13,7 +13,12 @@ import PixelArt from "../../components/PixelArt";
 import PatientCode from "../../components/PatientCode";
 import { enrolMother, isNetworkError } from "../../lib/api";
 import { queueRequest } from "../../lib/offlineStore";
-
+// Today as YYYY-MM-DD in the phone's own time zone, used to stop future dates.
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 export default function Enrol() {
   const location = useLocation();
   const role = location.pathname.startsWith("/a/") ? "asha" : "mother";
@@ -26,8 +31,11 @@ export default function Enrol() {
     village: "",
     phone: "",
     language: "te",
+    pregnancy_status: "",
     pregnancy_start_date: "",
+    estimated_due_date: "",
     delivery_date: "",
+    mode_of_delivery: "",
     conditions: {
       gestational_diabetes: false,
       hypertensive_in_pregnancy: false,
@@ -44,6 +52,7 @@ export default function Enrol() {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [stepError, setStepError] = useState("");
   const [created, setCreated] = useState(null);
 
   const set = (k) => (e) =>
@@ -65,14 +74,17 @@ export default function Enrol() {
 
     try {
       if (isAsha) {
+        const pregnant = ashaForm.pregnancy_status === "pregnant";
+        const delivered = ashaForm.pregnancy_status === "delivered";
         const payload = {
           woman_name: ashaForm.name.trim(),
           age: Number(ashaForm.age),
           village: ashaForm.village.trim(),
           phone: ashaForm.phone.trim(),
           language: ashaForm.language,
-          pregnancy_start_date: ashaForm.pregnancy_start_date,
-          delivery_date: ashaForm.delivery_date,
+          pregnancy_start_date: pregnant ? ashaForm.pregnancy_start_date || null : null,
+          estimated_due_date: pregnant ? ashaForm.estimated_due_date || null : null,
+          delivery_date: delivered ? ashaForm.delivery_date : null,
           gestational_diabetes: ashaForm.conditions.gestational_diabetes,
           on_metformin: false,
           hypertensive_in_pregnancy: ashaForm.conditions.hypertensive_in_pregnancy,
@@ -86,7 +98,7 @@ export default function Enrol() {
             .map((item) => item.trim())
             .filter(Boolean),
           consent: ashaForm.consent,
-          mode_of_delivery: "normal",
+          mode_of_delivery: delivered ? ashaForm.mode_of_delivery || null : null,
           discharge_hb: null,
         };
 
@@ -152,18 +164,18 @@ export default function Enrol() {
                 : step === 3
                   ? "Which village does she live in?"
                   : step === 4
-                  ? "What is her phone number?"
-                  : step === 5
-                  ? "Which language does she prefer?"
-                  : step === 6
-                  ? "When did her pregnancy start?"
-                  : step === 7
-                  ? "Does she have any of these conditions?"
-                  : step === 8
-                  ? "Is she taking any medicines?"
-                  : step === 9
-                  ? "Does she have any food preferences?"
-                  : "Can we create her care record?"
+                    ? "What is her phone number?"
+                    : step === 5
+                      ? "Which language does she prefer?"
+                      : step === 6
+                        ? "Is she pregnant, or has she delivered?"
+                        : step === 7
+                          ? "Does she have any of these conditions?"
+                          : step === 8
+                            ? "Is she taking any medicines?"
+                            : step === 9
+                              ? "Does she have any food preferences?"
+                              : "Can we create her care record?"
           }
           copy={
             step === 1
@@ -173,18 +185,17 @@ export default function Enrol() {
                 : step === 3
                   ? "Enter the village or locality where she lives."
                   : step === 4
-                  ? "Add a phone number if she has one."
-                  : step === 5
-                  ? "Choose the language she is most comfortable using."
-                  : step === 6
-                  ? "Enter the pregnancy start date and estimated due date."
-                  : step === 7
-                  ? "Select anything that applies to her pregnancy or delivery history."
-                  : step === 8
-                  ? "List any current medicines. You can enter more than one."
-                  : step === 9
-                  ? "Add foods she prefers, avoids, or cannot eat."
-                  : "Confirm that she understands and agrees to this record being created."
+                    ? "Add a phone number if she has one."
+                    : step === 5
+                      ? "Choose the language she is most comfortable using."
+                      : step === 6
+                        ? "Choose one, then enter the dates you know." : step === 7
+                          ? "Select anything that applies to her pregnancy or delivery history."
+                          : step === 8
+                            ? "List any current medicines. You can enter more than one."
+                            : step === 9
+                              ? "Add foods she prefers, avoids, or cannot eat."
+                              : "Confirm that she understands and agrees to this record being created."
           }
         />
 
@@ -209,8 +220,18 @@ export default function Enrol() {
               setStep(5);
             } else if (step === 5 && ashaForm.language) {
               setStep(6);
-            } else if (step === 6 && ashaForm.pregnancy_start_date) {
-              setStep(7);
+            } else if (step === 6) {
+              const st = ashaForm.pregnancy_status;
+              if (!st) {
+                setStepError("Choose whether she is pregnant or has delivered.");
+              } else if (st === "pregnant" && !ashaForm.pregnancy_start_date && !ashaForm.estimated_due_date) {
+                setStepError("Enter at least one date: the pregnancy start date or the estimated due date.");
+              } else if (st === "delivered" && !ashaForm.delivery_date) {
+                setStepError("Enter her delivery date.");
+              } else {
+                setStepError("");
+                setStep(7);
+              }
             } else if (step === 7) {
               setStep(8);
             } else if (step === 8) {
@@ -303,21 +324,60 @@ export default function Enrol() {
             />
           ) : step === 6 ? (
             <>
-              <Field
-                label="Pregnancy start date"
-                type="date"
-                value={ashaForm.pregnancy_start_date}
-                onChange={setAsha("pregnancy_start_date")}
-                autoFocus
-                required
+              <SelectField
+                label="Where is she now?"
+                value={ashaForm.pregnancy_status}
+                onChange={setAsha("pregnancy_status")}
+                options={[
+                  ["", "Choose one"],
+                  ["pregnant", "She is pregnant"],
+                  ["delivered", "She has delivered"],
+                ]}
               />
 
-              <Field
-                label="Estimated due date (optional)"
-                type="date"
-                value={ashaForm.delivery_date}
-                onChange={setAsha("delivery_date")}
-              />
+              {ashaForm.pregnancy_status === "pregnant" && (
+                <>
+                  <Field
+                    label="Pregnancy start date (if known)"
+                    type="date"
+                    max={todayLocal()}
+                    value={ashaForm.pregnancy_start_date}
+                    onChange={setAsha("pregnancy_start_date")}
+                  />
+                  <Field
+                    label="Estimated due date (if known)"
+                    type="date"
+                    value={ashaForm.estimated_due_date}
+                    onChange={setAsha("estimated_due_date")}
+                  />
+                  <p className="section-note">Enter at least one of the two dates.</p>
+                </>
+              )}
+
+              {ashaForm.pregnancy_status === "delivered" && (
+                <>
+                  <Field
+                    label="Delivery date"
+                    type="date"
+                    max={todayLocal()}
+                    value={ashaForm.delivery_date}
+                    onChange={setAsha("delivery_date")}
+                  />
+                  <SelectField
+                    label="Mode of delivery (optional)"
+                    value={ashaForm.mode_of_delivery}
+                    onChange={setAsha("mode_of_delivery")}
+                    options={[
+                      ["", "Not sure"],
+                      ["normal", "Normal"],
+                      ["LSCS", "C-section (LSCS)"],
+                      ["assisted", "Assisted"],
+                    ]}
+                  />
+                </>
+              )}
+
+              {stepError && <p role="alert" className="form-error">{stepError}</p>}
             </>
           ) : step === 7 ? (
             <fieldset className="field-group">
@@ -558,13 +618,13 @@ export default function Enrol() {
             )}
 
             <SelectField label="Language" value={f.language} onChange={set("language")}
-                         options={[["te", "Telugu"], ["ml", "Malayalam"], ["pa", "Punjabi"], ["en", "English"]]} />
+              options={[["te", "Telugu"], ["ml", "Malayalam"], ["pa", "Punjabi"], ["en", "English"]]} />
             <Button type="button" onClick={() => setStep(2)}>Continue <Icon name="arrow" /></Button>
           </>
         ) : (
           <>
             <Field label="Haemoglobin at discharge (optional)" type="number" step="0.1" min="0"
-                   value={f.discharge_hb} onChange={set("discharge_hb")} />
+              value={f.discharge_hb} onChange={set("discharge_hb")} />
             <fieldset className="field-group">
               <legend>During pregnancy or delivery</legend>
               <label className="check-row"><input type="checkbox" checked={f.gestational_diabetes} onChange={set("gestational_diabetes")} /><span>Gestational diabetes</span></label>
