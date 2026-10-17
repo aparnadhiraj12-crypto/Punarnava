@@ -863,3 +863,42 @@ def test_demo_seed_gives_every_laptop_the_same_ids_and_logins(monkeypatch):
             uid = auth._BY_CONTACT.pop(contact, None)
             if uid:
                 auth._USERS.pop(uid, None)
+
+
+
+# ---- mother says at signup whether she is pregnant or has delivered ----
+
+def test_pregnant_mother_signup_keeps_start_date_and_has_no_delivery_date():
+    s = client.post("/api/auth/signup", json={
+        "role": "mother", "phone_or_email": "preg1@test.com", "password": "password8",
+        "name": "Expecting One", "pregnancy_status": "pregnant", "pregnancy_start_date": "2026-06-01"})
+    assert s.status_code == 200
+    body = client.get(f"/api/record/women/{s.json()['linked_id']}").json()
+    assert body["delivery_date"] is None and body["pregnancy_start_date"] == "2026-06-01"
+    assert body["incomplete"] is False and body["trimester"] is not None
+
+
+def test_pregnant_mother_without_start_date_is_saved_incomplete_not_rejected():
+    s = client.post("/api/auth/signup", json={
+        "role": "mother", "phone_or_email": "preg2@test.com", "password": "password8",
+        "name": "Expecting Two", "pregnancy_status": "pregnant"})
+    assert s.status_code == 200
+    body = client.get(f"/api/record/women/{s.json()['linked_id']}").json()
+    assert body["delivery_date"] is None and body["pregnancy_start_date"] is None
+    assert body["incomplete"] is True
+
+
+def test_delivered_mother_signup_is_unchanged():
+    s = client.post("/api/auth/signup", json={
+        "role": "mother", "phone_or_email": "deliv1@test.com", "password": "password8",
+        "name": "Delivered One", "pregnancy_status": "delivered", "delivery_date": "2026-08-01"})
+    body = client.get(f"/api/record/women/{s.json()['linked_id']}").json()
+    assert body["delivery_date"] == "2026-08-01" and body["incomplete"] is False
+
+
+def test_signup_rejects_bad_pregnancy_status_and_future_start_date():
+    base = {"role": "mother", "password": "password8", "name": "X"}
+    assert client.post("/api/auth/signup", json={**base, "phone_or_email": "bad1@test.com",
+                       "pregnancy_status": "maybe"}).status_code == 400
+    assert client.post("/api/auth/signup", json={**base, "phone_or_email": "bad2@test.com",
+                       "pregnancy_status": "pregnant", "pregnancy_start_date": "2999-01-01"}).status_code == 400

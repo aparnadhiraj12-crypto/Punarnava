@@ -15,6 +15,8 @@ at /api/record/women/{linked_id} works straight after signup. If no
 delivery_date is sent, the record is created with today's date and
 incomplete=True (FR-B6: mark incomplete, never reject) -- the frontend
 should ask for the delivery date at signup so this is the exception.
+A mother who says she is still pregnant (pregnancy_status="pregnant") gets
+a record with no delivery date and, if she knows it, a pregnancy start date.
 ASHA and clinic accounts get a placeholder id, since they have no record.
 
 What this deliberately is NOT: production-grade auth. Passwords are salted
@@ -67,6 +69,9 @@ class SignupRequest(BaseModel):
     # only used when role == "mother"; ignored for asha/clinic
     delivery_date: Optional[date] = None
     mode_of_delivery: Optional[str] = None
+    # "pregnant" or "delivered", sent by the mother at signup
+    pregnancy_status: Optional[str] = None
+    pregnancy_start_date: Optional[date] = None  # entered as told, never inferred
     # only for role doctor / clinic: the code the Punarnava team set on the server
     invite_code: Optional[str] = None
 
@@ -91,6 +96,10 @@ def signup(req: SignupRequest):
         given = req.invite_code or ""
         if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
             raise HTTPException(403, "doctor and clinic accounts need an invite code from the Punarnava team")
+    if req.pregnancy_status not in (None, "pregnant", "delivered"):
+        raise HTTPException(400, "pregnancy_status must be 'pregnant' or 'delivered'")
+    if req.pregnancy_start_date and req.pregnancy_start_date > date.today():
+        raise HTTPException(400, "pregnancy_start_date cannot be in the future")
     if req.phone_or_email in _BY_CONTACT:
         raise HTTPException(409, "an account with this phone/email already exists")
     if len(req.password) < _MIN_PASSWORD_LENGTH:
@@ -100,12 +109,22 @@ def signup(req: SignupRequest):
     user_id = str(uuid.uuid4())
 
     if req.role == "mother":
-        record = create_woman(WomanRecord(
-            name=req.name,
-            delivery_date=req.delivery_date or date.today(),
-            mode_of_delivery=req.mode_of_delivery,
-            incomplete=req.delivery_date is None,
-        ))
+        if req.pregnancy_status == "pregnant":
+            # Still pregnant: no delivery date. A missing start date is allowed;
+            # the record is marked incomplete and can be completed later.
+            record = create_woman(WomanRecord(
+                name=req.name,
+                delivery_date=None,
+                pregnancy_start_date=req.pregnancy_start_date,
+                incomplete=req.pregnancy_start_date is None,
+            ))
+        else:
+            record = create_woman(WomanRecord(
+                name=req.name,
+                delivery_date=req.delivery_date or date.today(),
+                mode_of_delivery=req.mode_of_delivery,
+                incomplete=req.delivery_date is None,
+            ))
         linked_id = record["id"]
     else:
         linked_id = _make_linked_id(req.role)
