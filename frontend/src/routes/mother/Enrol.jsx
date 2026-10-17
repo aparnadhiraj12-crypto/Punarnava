@@ -19,6 +19,15 @@ function todayLocal() {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+// A fresh id for each enrolment attempt. It is sent with the request, and kept in
+// the offline queue if the phone has no signal, so a retry can never create the
+// same mother twice (the backend returns the existing record instead).
+function newClientId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export default function Enrol() {
   const location = useLocation();
   const role = location.pathname.startsWith("/a/") ? "asha" : "mother";
@@ -98,6 +107,7 @@ export default function Enrol() {
             .map((item) => item.trim())
             .filter(Boolean),
           consent: ashaForm.consent,
+          client_id: newClientId(),
           mode_of_delivery: delivered ? ashaForm.mode_of_delivery || null : null,
           discharge_hb: null,
         };
