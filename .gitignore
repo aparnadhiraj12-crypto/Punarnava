@@ -10,3 +10,6 @@ backend/data/
 *.db
 *.db-wal
 *.db-shm
+
+# Local environment files
+*.local

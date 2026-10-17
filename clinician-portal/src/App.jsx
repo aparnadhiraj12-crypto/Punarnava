@@ -42,11 +42,46 @@ function label(value) {
 }
 
 function errorMessage(error) {
+  if (error?.status === 429) return "Too many failed sign-in attempts. This login is locked for 15 minutes. Try again later.";
   if (error?.status === 401) return "Your session has expired. Sign in again to continue.";
   if (error?.status === 403) return "This account cannot access clinician records.";
   if (error?.status === 404) return "No patient was found with that unique code.";
   if (error instanceof TypeError) return "The records service could not be reached. Check that the backend is running.";
   return error?.message || "The request could not be completed.";
+}
+
+function todayISO() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function toIntOrNull(value) {
+  const text = String(value ?? "").trim();
+  return text === "" ? null : Number(text);
+}
+
+async function loadHistory(id, token) {
+  const encoded = encodeURIComponent(id);
+  const paths = [
+    `/record/women/${encoded}/interactions`,
+    `/record/women/${encoded}/visits`,
+    `/clinical/medication/${encoded}`,
+    `/clinical/bp/${encoded}`,
+  ];
+  const results = await Promise.allSettled(paths.map((path) => request(path, { token })));
+  const unauthorized = results.find((result) => result.status === "rejected" && result.reason?.status === 401);
+  if (unauthorized) throw unauthorized.reason;
+  const [interactions, visits, medications, bp] = results;
+  return {
+    history: {
+      interactions: interactions.status === "fulfilled" ? (Array.isArray(interactions.value) ? interactions.value : interactions.value.interactions || []) : [],
+      visits: visits.status === "fulfilled" ? (visits.value.entries || []) : [],
+      medications: medications.status === "fulfilled" ? (medications.value.entries || []) : [],
+      bp: bp.status === "fulfilled" ? (bp.value.entries || []) : [],
+    },
+    failed: results.some((result) => result.status === "rejected"),
+  };
 }
 
 export default function App() {
@@ -80,7 +115,7 @@ export default function App() {
       setSession(clinicianSession);
       setPassword("");
     } catch (error) {
-      setLoginError(errorMessage(error));
+      setLoginError(error?.status === 401 ? (error.message || "Incorrect phone/email or password.") : errorMessage(error));
     } finally {
       setLoginBusy(false);
     }
@@ -100,22 +135,9 @@ export default function App() {
     try {
       const record = await request(`/record/lookup/${encodeURIComponent(normalizedCode)}`, { token: session.token });
       setPatient(record);
-      const id = encodeURIComponent(record.id);
-      const paths = [
-        `/record/women/${id}/interactions`,
-        `/record/women/${id}/visits`,
-        `/clinical/medication/${id}`,
-      ];
-      const results = await Promise.allSettled(paths.map((path) => request(path, { token: session.token })));
-      const [interactions, visits, medications] = results;
-      setHistory({
-        interactions: interactions.status === "fulfilled" ? (Array.isArray(interactions.value) ? interactions.value : interactions.value.interactions || []) : [],
-        visits: visits.status === "fulfilled" ? (visits.value.entries || []) : [],
-        medications: medications.status === "fulfilled" ? (medications.value.entries || []) : [],
-      });
-      if (results.some((result) => result.status === "rejected")) {
-        setHistoryNotice("Some history sections could not be loaded. The patient record is still available.");
-      }
+      const { history: loaded, failed } = await loadHistory(record.id, session.token);
+      setHistory(loaded);
+      if (failed) setHistoryNotice("Some history sections could not be loaded. The patient record is still available.");
       setCode(normalizedCode);
     } catch (error) {
       setLookupError(errorMessage(error));
@@ -134,6 +156,21 @@ export default function App() {
     setPatient(null);
     setHistory(null);
     setCode("");
+  }
+
+  async function refreshHistory() {
+    if (!patient || !session) return;
+    try {
+      const { history: loaded, failed } = await loadHistory(patient.id, session.token);
+      setHistory(loaded);
+      setHistoryNotice(failed ? "Some history sections could not be loaded. The patient record is still available." : "");
+    } catch (error) {
+      if (error?.status === 401) {
+        signOut();
+      } else {
+        setHistoryNotice("Saved, but the history could not be refreshed. Search again to reload it.");
+      }
+    }
   }
 
   if (!session) {
@@ -186,6 +223,14 @@ export default function App() {
       detail: item.reason,
       tag: "Follow-up",
       tone: item.outcome === "could_not_go" ? "amber" : "green",
+    })),
+    ...(history?.bp || []).map((item) => ({
+      key: `bp-${item.id}`,
+      date: item.measured_on || item.timestamp,
+      title: `Blood pressure ${item.systolic}/${item.diastolic} mmHg`,
+      detail: [item.pulse != null ? `Pulse ${item.pulse}` : null, item.note].filter(Boolean).join(" · "),
+      tag: "BP reading",
+      tone: "neutral",
     })),
     ...(patient?.milestones || []).map((item) => ({
       key: `milestone-${item.rule_id}`,
@@ -251,8 +296,15 @@ export default function App() {
                 {patient.medications?.length ? <ul className="medication-list">{patient.medications.map((item, index) => <li key={`${item}-${index}`}><div><strong>{item}</strong><span>Recorded during enrollment</span></div></li>)}</ul> : <p className="muted compact-empty">No medicines recorded at enrollment.</p>}
               </section>
 
+              <section className="record-section">
+                <SectionHeading index="03" title="Blood pressure readings" />
+                {history?.bp?.length ? <ul className="medication-list bp-list">{history.bp.map((item) => <li key={item.id}><div><strong>{item.systolic}/{item.diastolic} mmHg</strong><span>{[item.pulse != null ? `Pulse ${item.pulse}` : null, item.note].filter(Boolean).join(" · ") || "No pulse or note recorded"}</span></div><small>{formatDate(item.measured_on || item.timestamp)}</small></li>)}</ul> : <p className="muted compact-empty">No blood pressure readings recorded.</p>}
+              </section>
+
+              <ClinicalForm patient={patient} token={session.token} onSaved={refreshHistory} onUnauthorized={signOut} />
+
               <section className="record-section history-section">
-                <SectionHeading index="03" title="Continuity history" />
+                <SectionHeading index="05" title="Continuity history" />
                 {timeline.length ? <ol className="history-list">{timeline.map((item) => <li className="history-item" key={item.key}><span className={`history-marker ${item.tone}`} /><div className="history-entry"><div className="history-meta"><time>{formatDate(item.date)}</time><span className={`history-tag ${item.tone}`}>{item.tag}</span></div><h3>{item.title}</h3>{item.detail && <p>{item.detail}</p>}</div></li>)}</ol> : <p className="muted compact-empty">No visits, follow-ups, or milestones recorded.</p>}
               </section>
             </div>
@@ -274,4 +326,107 @@ function Fact({ label: title, value }) {
 
 function SectionHeading({ index, title }) {
   return <div className="section-heading"><span>{index}</span><h2>{title}</h2></div>;
+}
+function ClinicalForm({ patient, token, onSaved, onUnauthorized }) {
+  const [tab, setTab] = useState("prescription");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [rx, setRx] = useState({ medication_name: "", dosage: "", instructions: "" });
+  const [bp, setBp] = useState({ systolic: "", diastolic: "", pulse: "", measured_on: "", note: "" });
+
+  function switchTab(next) {
+    if (busy) return;
+    setTab(next);
+    setError("");
+    setSuccess("");
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      if (tab === "prescription") {
+        await request("/clinical/medication", {
+          method: "POST",
+          token,
+          body: {
+            woman_id: patient.id,
+            medication_name: rx.medication_name.trim(),
+            dosage: rx.dosage.trim() || null,
+            instructions: rx.instructions.trim() || null,
+          },
+        });
+        setRx({ medication_name: "", dosage: "", instructions: "" });
+      } else {
+        await request("/clinical/bp", {
+          method: "POST",
+          token,
+          body: {
+            woman_id: patient.id,
+            systolic: toIntOrNull(bp.systolic),
+            diastolic: toIntOrNull(bp.diastolic),
+            pulse: toIntOrNull(bp.pulse),
+            measured_on: bp.measured_on || null,
+            note: bp.note.trim() || null,
+          },
+        });
+        setBp({ systolic: "", diastolic: "", pulse: "", measured_on: "", note: "" });
+      }
+      setSuccess("Saved. It will appear in her app.");
+      await onSaved();
+    } catch (err) {
+      if (err?.status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const setRxField = (key) => (event) => setRx((current) => ({ ...current, [key]: event.target.value }));
+  const setBpField = (key) => (event) => setBp((current) => ({ ...current, [key]: event.target.value }));
+
+  return (
+    <section className="record-section add-section">
+      <SectionHeading index="04" title="Add to her record" />
+      <div className="tab-row" role="tablist" aria-label="Type of entry">
+        <button type="button" role="tab" aria-selected={tab === "prescription"} className={`tab-button${tab === "prescription" ? " active" : ""}`} onClick={() => switchTab("prescription")}>Prescription</button>
+        <button type="button" role="tab" aria-selected={tab === "bp"} className={`tab-button${tab === "bp" ? " active" : ""}`} onClick={() => switchTab("bp")}>Blood pressure</button>
+      </div>
+      <form className="entry-form" onSubmit={submit}>
+        {tab === "prescription" ? (
+          <>
+            <label className="field-label" htmlFor="rx-name">Medicine name <span className="required-mark">required</span></label>
+            <input id="rx-name" value={rx.medication_name} onChange={setRxField("medication_name")} required autoComplete="off" />
+            <div className="form-row">
+              <div><label className="field-label" htmlFor="rx-dosage">Dosage</label><input id="rx-dosage" value={rx.dosage} onChange={setRxField("dosage")} placeholder="1 daily" autoComplete="off" /></div>
+              <div><label className="field-label" htmlFor="rx-instructions">Instructions</label><input id="rx-instructions" value={rx.instructions} onChange={setRxField("instructions")} placeholder="After food, for 3 months" autoComplete="off" /></div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="form-row">
+              <div><label className="field-label" htmlFor="bp-sys">Systolic <span className="required-mark">required</span></label><input id="bp-sys" type="number" inputMode="numeric" step="1" value={bp.systolic} onChange={setBpField("systolic")} required /></div>
+              <div><label className="field-label" htmlFor="bp-dia">Diastolic <span className="required-mark">required</span></label><input id="bp-dia" type="number" inputMode="numeric" step="1" value={bp.diastolic} onChange={setBpField("diastolic")} required /></div>
+            </div>
+            <div className="form-row">
+              <div><label className="field-label" htmlFor="bp-pulse">Pulse</label><input id="bp-pulse" type="number" inputMode="numeric" step="1" value={bp.pulse} onChange={setBpField("pulse")} /></div>
+              <div><label className="field-label" htmlFor="bp-date">Measured on</label><input id="bp-date" type="date" max={todayISO()} value={bp.measured_on} onChange={setBpField("measured_on")} /></div>
+            </div>
+            <label className="field-label" htmlFor="bp-note">Note</label>
+            <input id="bp-note" value={bp.note} onChange={setBpField("note")} placeholder="Seated, left arm" autoComplete="off" />
+          </>
+        )}
+        {error && <p className="error-message" role="alert">{error}</p>}
+        {success && <p className="success-message" role="status">{success}</p>}
+        <button className="primary-button entry-submit" type="submit" disabled={busy}>{busy ? "Saving…" : tab === "prescription" ? "Save prescription" : "Save reading"}</button>
+      </form>
+    </section>
+  );
 }

@@ -144,6 +144,16 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .privacy-symbol { flex: 0 0 auto; width: 17px; height: 17px; display: grid; place-items: center; color: white; background: #668972; border-radius: 50%; font: 500 11px "Newsreader", serif; }
 .privacy-note p { margin: 0; color: #52665a; font-size: 10px; line-height: 1.55; }
 .workspace-footer { min-height: 54px; margin-top: 22px; display: flex; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid var(--line); color: #849087; font-family: "IBM Plex Mono", monospace; font-size: 9px; }
+.tab-row { display: flex; gap: 4px; margin-top: 16px; border-bottom: 1px solid #e6ebe5; }
+.tab-button { padding: 10px 16px; background: transparent; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.tab-button.active { color: var(--green-dark); border-bottom-color: var(--green); }
+.entry-form input { width: 100%; height: 46px; padding: 0 13px; background: white; color: var(--ink); border: 1px solid #cbd7ce; border-radius: 2px; }
+.entry-form input:focus { border-color: var(--green); outline: 2px solid rgba(39, 102, 81, .12); }
+.entry-form .field-label { margin-top: 16px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.required-mark { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 9px; font-weight: 400; text-transform: uppercase; }
+.entry-submit { margin-top: 20px; min-width: 180px; }
+.success-message { margin: 13px 0 0; padding: 10px 12px; color: var(--green-dark); background: #e5efe7; border-left: 3px solid var(--green); font-size: 12px; }
 @keyframes arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -164,6 +174,9 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 }
 
 @media (max-width: 480px) {
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+  .entry-submit { width: 100%; }
+  .tab-button { flex: 1; padding-inline: 8px; }
   .sign-in-page { padding-inline: 20px; }
   .sign-in-layout { padding: 48px 0; }
   .sign-in-intro h1 { font-size: 48px; }
@@ -194,7 +207,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 
 @media print {
   body, .portal { background: white; }
-  .topbar, .workspace-heading, .lookup-bar, .workspace-footer, .record-stamp { display: none !important; }
+  .topbar, .workspace-heading, .lookup-bar, .workspace-footer, .record-stamp, .add-section { display: none !important; }
   .workspace { width: 100%; padding: 0; }
   .patient-banner { margin-top: 0; print-color-adjust: exact; }
   .record-section, .aside-section, .facts-strip { break-inside: avoid; }
