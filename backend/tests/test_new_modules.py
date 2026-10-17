@@ -851,7 +851,7 @@ def test_demo_seed_gives_every_laptop_the_same_ids_and_logins(monkeypatch):
             doc = c.post("/api/auth/login", json={"phone_or_email": "doctor@demo.in", "password": auth.DEMO_PASSWORD})
             assert doc.status_code == 200 and doc.json()["role"] == "doctor"
             h = {"Authorization": "Bearer " + doc.json()["token"]}
-            assert c.get("/api/record/women/PN-LAKSH1", headers=h).json()["id"] == "demo-lakshmi"
+            assert c.get("/api/record/lookup/PN-LAKSH1", headers=h).json()["id"] == "demo-lakshmi"
             asha = c.post("/api/auth/login", json={"phone_or_email": "asha@demo.in", "password": auth.DEMO_PASSWORD})
             assert asha.status_code == 200
             ah = {"Authorization": "Bearer " + asha.json()["token"]}
