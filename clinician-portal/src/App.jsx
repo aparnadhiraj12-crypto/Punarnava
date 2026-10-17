@@ -41,6 +41,18 @@ function label(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const LANGUAGE_NAMES = {
+  en: "English", hi: "Hindi", te: "Telugu", ta: "Tamil", kn: "Kannada", ml: "Malayalam",
+  mr: "Marathi", bn: "Bengali", gu: "Gujarati", pa: "Punjabi", or: "Odia", od: "Odia",
+  as: "Assamese", ur: "Urdu",
+};
+
+function languageName(value) {
+  if (!value) return "Not recorded";
+  const key = String(value).trim().toLowerCase();
+  return LANGUAGE_NAMES[key] || label(value);
+}
+
 function errorMessage(error) {
   if (error?.status === 429) return "Too many failed sign-in attempts. This login is locked for 15 minutes. Try again later.";
   if (error?.status === 401) return "Your session has expired. Sign in again to continue.";
@@ -232,8 +244,8 @@ export default function App() {
             <input id="password" type="password" autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={authMode === "signup" ? 4 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} required />
             {authMode === "signup" && (
               <>
-                <label className="field-label" htmlFor="invite-code">Staff invite code{signupRole === "doctor" ? "" : " (if your team gave you one)"}</label>
-                <input id="invite-code" type="text" autoComplete="off" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} required={signupRole === "doctor"} />
+                <label className="field-label" htmlFor="invite-code">Staff invite code <span className="required-mark">required</span></label>
+                <input id="invite-code" type="text" autoComplete="off" value={inviteCode} onChange={(event) => setInviteCode(event.target.value)} placeholder="Given by the Punarnava team" required />
               </>
             )}
             {loginError && <p className="error-message" role="alert">{loginError}</p>}
@@ -314,7 +326,7 @@ export default function App() {
 
           <section className="facts-strip" aria-label="Patient details">
             <Fact label="Age" value={patient.age == null ? "Not recorded" : `${patient.age} years`} />
-            <Fact label="Language" value={patient.language ? label(patient.language) : "Not recorded"} />
+            <Fact label="Language" value={languageName(patient.language)} />
             <Fact label="Delivery date" value={formatDate(patient.delivery_date)} />
             <Fact label="Delivery mode" value={label(patient.mode_of_delivery) || "Not recorded"} />
             <Fact label="Postpartum" value={patient.postpartum_day == null ? "Not recorded" : `Day ${patient.postpartum_day}`} />
