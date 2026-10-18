@@ -124,6 +124,26 @@ def create_woman(record: WomanRecord, fixed_id: str | None = None) -> dict:
     return _WOMEN[record.id]
 
 
+def _new_mother_code() -> str:
+    import secrets
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    while True:
+        code = "PN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        if not any(w.get("mother_code") == code for w in _WOMEN.values()):
+            return code
+
+
+def ensure_mother_codes() -> int:
+    """Records saved before codes existed have none, so a doctor could never
+    find them. Called at startup; gives each one a code and returns how many."""
+    fixed = 0
+    for rec in _WOMEN.values():
+        if not rec.get("mother_code"):
+            rec["mother_code"] = _new_mother_code()
+            fixed += 1
+    return fixed
+
+
 def _with_milestones(rec: dict) -> dict:
     """Attaches live-computed milestones + postpartum_day. Milestones are
     never stored -- they're derived from delivery_date + clinical_events on

@@ -1629,3 +1629,31 @@ def test_signup_rejects_bad_pregnancy_status_and_future_start_date():
         ).status_code
         == 400
     )
+
+
+# ---- doctors can use the mother code anywhere an id goes ----
+
+def test_old_records_without_a_code_get_one():
+    from record.router import _WOMEN, ensure_mother_codes
+    tok, wid = _mother()
+    _WOMEN[wid]["mother_code"] = None
+    assert ensure_mother_codes() >= 1
+    assert _WOMEN[wid]["mother_code"].startswith("PN-")
+    assert ensure_mother_codes() == 0
+
+
+def test_doctor_can_use_the_mother_code_as_her_id(monkeypatch):
+    _strict(monkeypatch)
+    doc = _signup("doctor")[0]
+    tok, wid = _mother()
+    other_tok, _ = _mother()
+    code = client.get(f"/api/record/women/{wid}", params={"token": tok}).json()["mother_code"]
+    for path in (f"/api/record/women/{code}", f"/api/record/women/{code.lower()}",
+                 f"/api/record/women/{code}/interactions", f"/api/record/women/{code}/visits",
+                 f"/api/scheduler/{code}", f"/api/report/{code}", f"/api/clinical/medication/{code}"):
+        assert client.get(path, params={"token": doc}).status_code == 200, path
+    assert client.get(f"/api/record/women/{code}", params={"token": tok}).json()["id"] == wid
+    assert client.get(f"/api/record/women/{code}", params={"token": other_tok}).status_code == 403
+    assert client.get(f"/api/record/women/{code}").status_code == 401
+    assert client.get("/api/record/women/PN-ZZZZZZ", params={"token": doc}).status_code == 404
+    assert client.get(f"/api/record/lookup/{code}", params={"token": doc}).json()["id"] == wid

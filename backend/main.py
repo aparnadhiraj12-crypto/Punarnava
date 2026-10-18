@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import re
 from urllib.parse import parse_qsl, urlencode
 
 from fastapi import FastAPI, Request
@@ -26,7 +27,7 @@ import persistence
 from auth.router import _USERS, _TOKENS, _BY_CONTACT, cleanup_expired_tokens, seed_demo_accounts
 from journal.router import _ENTRIES as _JOURNAL_ENTRIES, _SHARED_WITH_DOCTOR
 from selfreport.router import _ENTRIES as _SELFREPORT_ENTRIES
-from record.router import _WOMEN, _COMPLETIONS, _INTERACTIONS, _VISITS
+from record.router import _WOMEN, _COMPLETIONS, _INTERACTIONS, _VISITS, ensure_mother_codes
 from clinical.router import _PRESCRIBED, _BP_READINGS
 from wellness.router import _TASTE_PREFS, _SAVED_PLANS
 from family.router import _GRANTS
@@ -56,7 +57,7 @@ persistence.register("ingestion.by_client_id", _BY_CLIENT_ID)
 async def lifespan(app):
     """Restore persisted stores before pruning tokens and optional demo data."""
     persistence.load_all()
-    if cleanup_expired_tokens():
+    if ensure_mother_codes() or cleanup_expired_tokens():
         persistence.save_changed()
     if os.environ.get("PUNARNAVA_SEED_DEMO") == "1":
         seed_demo_data()
@@ -103,6 +104,28 @@ async def bearer_token_only(request: Request, call_next):
         query = [(key, value) for key, value in query if key != "token"]
         query.append(("token", token.strip()))
         request.scope["query_string"] = urlencode(query).encode()
+    return await call_next(request)
+
+
+_CODE_IN_PATH = re.compile(r"PN-[A-Za-z0-9]{6}", re.IGNORECASE)
+
+
+@app.middleware("http")
+async def resolve_mother_codes(request: Request, call_next):
+    """A doctor can type the short PN- code anywhere a mother's id goes
+    (record, report, scheduler, medication ...). Access rules still apply
+    to the real id it resolves to."""
+    path = request.scope["path"]
+    if path.startswith("/api/") and not path.startswith("/api/record/lookup/"):
+        match = _CODE_IN_PATH.search(path)
+        if match:
+            code = match.group(0).upper()
+            for woman_id, rec in _WOMEN.items():
+                if rec.get("mother_code") == code:
+                    new_path = path[:match.start()] + woman_id + path[match.end():]
+                    request.scope["path"] = new_path
+                    request.scope["raw_path"] = new_path.encode()
+                    break
     return await call_next(request)
 
 
