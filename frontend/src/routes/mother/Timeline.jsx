@@ -58,7 +58,9 @@ export default function Timeline() {
       <PageTitle
         eyebrow={`Hello, ${woman.name}`}
         title="Your journey"
-        copy={`Day ${woman.postpartum_day} after delivery · ${formatDate(woman.delivery_date)}${woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}`}
+        copy={woman.postpartum_day == null
+          ? `Pregnant${woman.trimester ? ` · trimester ${woman.trimester}` : ""}${woman.estimated_due_date ? ` · due ${formatDate(woman.estimated_due_date)}` : ""}`
+          : `Day ${woman.postpartum_day} after delivery · ${formatDate(woman.delivery_date)}${woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}`}
       />
 
       {woman.incomplete && (

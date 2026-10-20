@@ -79,7 +79,7 @@ export default function Queue() {
               <div className="queue-number">{String(index + 1).padStart(2, "0")}</div>
               <Avatar name={m.name} />
               <div className="queue-person">
-                <div className="eyebrow">Day {m.postpartum_day} after delivery</div>
+                <div className="eyebrow">{m.postpartum_day == null ? `Pregnant${m.trimester ? ` · trimester ${m.trimester}` : ""}` : `Day ${m.postpartum_day} after delivery`}</div>
                 <div className="card-title">{m.name}</div>
                 {m.clinical_events?.length > 0 && (
                   <ul className="tag-row">

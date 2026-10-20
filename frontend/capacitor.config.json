@@ -1,0 +1,7 @@
+{
+  "appId": "in.punarnava.app",
+  "appName": "Punarnava",
+  "webDir": "dist",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "plugins": { "SystemBars": { "style": "LIGHT" } }
+}

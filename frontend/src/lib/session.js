@@ -13,6 +13,7 @@ export function saveSession({ token, role, linked_id }, name) {
     localStorage.setItem(K.role, role ?? "");
     localStorage.setItem(K.id, linked_id ?? "");
     localStorage.setItem(K.name, name ?? "");
+    if (role === "mother" || role === "asha") localStorage.setItem(H.role, role);
   } catch { /* ignore */ }
 }
 
@@ -57,4 +58,24 @@ export function homeFor(role, linkedId) {
   }
 
   return "/login";
+}
+
+// What the app remembers AFTER logout, so a returning user is never asked
+// "mother or ASHA?" again. clearSession() deliberately leaves these alone.
+const H = { role: "punarnava_role_hint", contact: "punarnava_contact_hint" };
+
+export function rememberContact(contact) {
+  try { if (contact) localStorage.setItem(H.contact, contact); } catch { /* ignore */ }
+}
+
+export function getHint() {
+  try {
+    return { role: localStorage.getItem(H.role), contact: localStorage.getItem(H.contact) };
+  } catch {
+    return { role: null, contact: null };
+  }
+}
+
+export function forgetHint() {
+  try { Object.values(H).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
 }

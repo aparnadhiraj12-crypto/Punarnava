@@ -2,7 +2,8 @@
 // also add the route to docs/SITEMAP.md so it's tracked in one place).
 // BrowserRouter lives here because main.jsx has no router.
 
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 
 import Timeline from "./routes/mother/Timeline";
 import Enrol from "./routes/mother/Enrol";
@@ -215,98 +216,20 @@ export default function App() {
 }
 
 function Home() {
-  // Reading storage on render is fine here; logout just reloads the page.
-  const { token, role, linkedId, name } = getSession();
-  const loggedIn = Boolean(token);
+  const { token, role, linkedId } = getSession();
+  const nav = useNavigate();
+
+  useEffect(() => {
+    if (token && role) {
+      nav(homeFor(role, linkedId), { replace: true });
+    } else {
+      nav("/login", { replace: true });
+    }
+  }, [token, role, linkedId, nav]);
 
   return (
-    <main className="landing">
-      <nav className="landing-nav">
-        <Brand />
-        <div className="nav-actions">
-          {loggedIn ? (
-            <>
-              <span className="section-note" style={{ margin: 0 }}>Signed in as <strong>{name || "you"}</strong></span>
-              <Link to={homeFor(role, linkedId)}><Button>Go to my page</Button></Link>
-              <Button tone="quiet" onClick={() => { clearSession(); window.location.reload(); }}>Log out</Button>
-            </>
-          ) : (
-            <>
-              <Link to="/login"><Button tone="quiet">Log in</Button></Link>
-              <Link to="/signup"><Button>Create account</Button></Link>
-            </>
-          )}
-        </div>
-      </nav>
-
-      <section className="hero">
-        <div className="hero-copy">
-          <span className="badge">Postpartum care, connected</span>
-          <div className="display display-xl">Your health journey<br />doesn't end here.</div>
-          <p className="lead">Punarnava keeps your postpartum care connected — from one visit to the next.</p>
-          <div className="button-row">
-            {loggedIn ? (
-              <Link to={homeFor(role, linkedId)}><Button>Go to my page <Icon name="arrow" /></Button></Link>
-            ) : (
-              <>
-                <Link to="/login"><Button>Log in <Icon name="arrow" /></Button></Link>
-                <Link to="/signup"><Button tone="secondary">New mother? Create account</Button></Link>
-              </>
-            )}
-          </div>
-          <div className="trust-line">
-            <Icon name="shield" />
-            <span>Private, simple and made for continuity of care</span>
-          </div>
-        </div>
-        <div className="hero-art">
-          <div className="sun-stamp" />
-          <PixelArt kind="mother" />
-          <div className="art-caption">
-            <span>A record that grows with you</span>
-            <Icon name="leaf" />
-          </div>
-        </div>
-      </section>
-
-      <section className="features">
-        {[
-          ["01", "Continuous care", "Your milestones stay connected."],
-          ["02", "For every step", "See what is due, what is done, and what comes next."],
-          ["03", "Built for real care", "Designed around mothers, ASHA workers and clinics."],
-        ].map(([n, title, copy]) => (
-          <article className="feature-card" key={n}>
-            <span className="pixel-label">{n}</span>
-            <div className="feature-title">{title}</div>
-            <p>{copy}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="care-flow" id="how">
-        <div>
-          <div className="eyebrow">One continuous record</div>
-          <div className="display display-lg">Care moves with you.</div>
-          <p>Every visit adds to the same clear journey, so the people supporting you can understand what has happened and what comes next.</p>
-        </div>
-        <div className="flow-steps">
-          <div className="flow-person"><PixelArt kind="mother" /><strong>Mother</strong><span>Sees her journey</span></div>
-          <Icon name="arrow" size={26} />
-          <div className="flow-person"><PixelArt kind="worker" /><strong>ASHA</strong><span>Records each visit</span></div>
-          <Icon name="arrow" size={26} />
-          <div className="flow-person"><PixelArt kind="clinic" /><strong>Clinic</strong><span>Receives a clear handoff</span></div>
-        </div>
-      </section>
-
-      <footer>
-        <Brand />
-        <span>Made for every step after birth.</span>
-        <div className="footer-links">
-          <Link to="/how-it-works">How it works</Link>
-          <Link to="/principles">Principles</Link>
-          <Link to="/privacy">Privacy</Link>
-        </div>
-      </footer>
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p className="eyebrow">Opening Punarnava…</p>
     </main>
   );
 }

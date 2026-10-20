@@ -74,7 +74,9 @@ export default function Handoff() {
           <div className="summary-status">
             <div>
               <span>Current status</span>
-              <strong>Day {woman.postpartum_day} after delivery · {formatDate(woman.delivery_date)}{woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}</strong>
+              <strong>{woman.postpartum_day == null
+                ? `Pregnant${woman.trimester ? ` · trimester ${woman.trimester}` : ""}${woman.estimated_due_date ? ` · due ${formatDate(woman.estimated_due_date)}` : ""}`
+                : `Day ${woman.postpartum_day} after delivery · ${formatDate(woman.delivery_date)}${woman.mode_of_delivery ? ` · ${woman.mode_of_delivery}` : ""}`}</strong>
             </div>
             {overdue.length > 0 && <Badge tone="terra">{overdue.length} milestone{overdue.length === 1 ? "" : "s"} due or overdue</Badge>}
           </div>

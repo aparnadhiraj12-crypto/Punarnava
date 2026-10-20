@@ -573,3 +573,98 @@ fieldset.field-group legend { padding: 0 .4rem; font-size: .82rem; font-weight: 
 .du-list li > div { display: grid; gap: .15rem; }
 .du-list span { color: var(--ink); font-size: .92rem; }
 .du-list small { color: var(--muted); font-size: .78rem; }
+
+/* ---- phone: keep content clear of the status bar and gesture bar ---- */
+:root {
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+body { padding-top: var(--safe-top); }
+.bottom-nav { padding-bottom: max(.55rem, var(--safe-bottom)); }
+
+/* ---- phone: account menu with Log out ---- */
+.mobile-header { position: relative; }
+.mobile-header button.avatar { cursor: pointer; font: inherit; font-family: "Fraunces"; font-size: 1.2rem; color: var(--text); }
+.account-menu { position: absolute; right: 1.2rem; top: calc(100% - .4rem); z-index: 30; min-width: 190px; padding: .6rem; background: var(--paper-light); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, .14); display: grid; gap: .3rem; }
+.account-name { padding: .3rem .6rem; color: var(--muted); font-size: .85rem; }
+.account-menu button { border: 0; background: transparent; text-align: left; padding: .7rem .6rem; border-radius: 8px; font: inherit; color: var(--terra); cursor: pointer; }
+.account-menu button:active { background: var(--sage); }
+
+/* ---- phone polish: journey screen (first pass) ---- */
+@media (max-width: 600px) {
+  .content { padding: 1.2rem 0 6.5rem; }
+  .page-title { margin-bottom: 1.1rem; }
+  .display-md { font-size: 1.9rem; }
+  .display-lg { font-size: 2rem; }
+
+  /* patient code: one compact row instead of a tall card */
+  .patient-code-card { margin: .5rem 0 1rem; padding: .75rem 1rem; }
+  .patient-code-copy p { display: none; }
+  .patient-code-copy > strong { font-size: 1.15rem; }
+  .patient-code-card .button { min-height: 40px; padding: .35rem .85rem; font-size: .9rem; }
+
+  /* quick actions: even tiles, the safety action across the top */
+  .link-row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-top: .6rem; }
+  .link-row > a:first-child { grid-column: 1 / -1; }
+  .link-row .button { width: 100%; }
+
+  /* next milestone: no more full-screen card */
+  .next-card { min-height: 0; padding: 1.25rem; }
+  .next-card .pixel-art { width: 96px; height: 96px; opacity: .45; }
+  .next-content p { margin: .6rem 0 1rem; }
+}
+
+/* ---- phone foundation: safe areas and natural mobile layout ---- */
+:root {
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+body { padding-top: var(--safe-top); }
+
+@media (max-width: 900px) {
+  .auth-page {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 1.5rem 1.25rem calc(1.5rem + var(--safe-bottom));
+    justify-content: center;
+  }
+  .auth-illustration { display: none; }
+  .auth-brand { position: static; margin-bottom: 1.5rem; }
+  .auth-panel {
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 0;
+  }
+  .auth-copy { margin-bottom: 1.5rem; }
+  .auth-copy .display-lg { font-size: 2.2rem; }
+  .auth-form {
+    gap: 1.2rem;
+    padding: 1.5rem;
+    background: var(--paper-light);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 4px 5px 0 rgba(36, 94, 74, .06);
+  }
+  .field input, .field select {
+    background: var(--paper);
+    min-height: 3.2rem;
+    font-size: 1rem;
+  }
+  .auth-form > .button {
+    width: 100%;
+    min-height: 3.2rem;
+    font-size: 1rem;
+  }
+  .auth-switch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    gap: .4rem;
+  }
+  .role-picker { grid-template-columns: 1fr; }
+}

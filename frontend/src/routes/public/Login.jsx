@@ -6,12 +6,13 @@ import Button from "../../components/Button";
 import Field from "../../components/Field";
 import PixelArt from "../../components/PixelArt";
 import { login, getMe } from "../../lib/api";
-import { saveSession, homeFor } from "../../lib/session";
+import { saveSession, homeFor, getHint, rememberContact, forgetHint } from "../../lib/session";
 import { friendlyAuthError } from "../../lib/errors";
 
 export default function Login() {
   const nav = useNavigate();
-  const [id, setId] = useState("");
+  const hint = getHint();
+  const [id, setId] = useState(hint.contact || "");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -25,6 +26,7 @@ export default function Login() {
       let name = "";
       try { name = (await getMe(res.token)).name ?? ""; } catch { /* name is optional */ }
       saveSession(res, name);
+      rememberContact(id.trim());
       nav(homeFor(res.role, res.linked_id));
     } catch (err) {
       setError(friendlyAuthError(err));
@@ -38,7 +40,7 @@ export default function Login() {
       <Link to="/" className="auth-brand"><Brand /></Link>
       <section className="auth-panel">
         <div className="auth-copy">
-          <div className="eyebrow">Good to see you</div>
+          <div className="eyebrow">{hint.role === "asha" ? "Welcome back, ASHA worker" : hint.role === "mother" ? "Welcome back, mother" : "Good to see you"}</div>
           <div className="display display-lg">Welcome back.</div>
           <p>Your journey continues here.</p>
         </div>
@@ -58,6 +60,12 @@ export default function Login() {
           New to Punarnava?
           <Link to="/signup"><Button tone="quiet">Create an account</Button></Link>
         </div>
+        {(hint.role || hint.contact) && (
+          <div className="auth-switch">
+            Not you?
+            <Button tone="quiet" type="button" onClick={() => { forgetHint(); window.location.reload(); }}>Use a different account</Button>
+          </div>
+        )}
       </section>
       <aside className="auth-illustration">
         <PixelArt kind="mother" />

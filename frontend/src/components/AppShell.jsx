@@ -1,5 +1,6 @@
 // components/AppShell.jsx - the sidebar + bottom-nav frame from the redesign,
 // wired to real routes instead of the design file's in-memory screen switcher.
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Icon from "./Icon";
 import Brand from "./Brand";
@@ -19,6 +20,7 @@ const ashaNav = [
 
 export default function AppShell({ role, children }) {
   const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   const { name } = getSession();
   const nav = role === "asha" ? ashaNav : motherNav(getSession().linkedId);
   const roleLabel = role === "asha" ? "ASHA space" : "Mother space";
@@ -46,7 +48,14 @@ export default function AppShell({ role, children }) {
       <div className="main-column">
         <header className="mobile-header">
           <Link to="/" className="brand-link"><Brand compact /></Link>
-          <Link to="/" className="avatar">{name?.[0]?.toUpperCase() ?? "•"}</Link>
+          <button type="button" className="avatar" aria-label="Account menu" aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((open) => !open)}>{name?.[0]?.toUpperCase() ?? "•"}</button>
+          {menuOpen && (
+            <div className="account-menu" role="menu">
+              <div className="account-name">{name || "Signed in"}</div>
+              <button type="button" role="menuitem" onClick={() => { clearSession(); window.location.href = "/"; }}>Log out</button>
+            </div>
+          )}
         </header>
         <main className="content">{role === "asha" && <OfflineStatus />}{children}</main>
         <nav className="bottom-nav">
