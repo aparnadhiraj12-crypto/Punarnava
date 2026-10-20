@@ -8,6 +8,8 @@ import {
   getFamilyGrants,
   grantFamilyAccess,
   revokeFamilyAccess,
+  getPartnerAlerts,
+  updatePartnerPhone,
 } from "../../lib/api";
 
 const SHARING_OPTIONS = [
@@ -45,6 +47,9 @@ export default function Family() {
   );
 
   const [sharedView, setSharedView] = useState(null);
+  const [partnerAlerts, setPartnerAlerts] = useState(null);
+  const [spousePhoneInput, setSpousePhoneInput] = useState("");
+  const [partnerMsg, setPartnerMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [message, setMessage] = useState("");
@@ -63,12 +68,32 @@ export default function Family() {
     setFailed(false);
 
     try {
-      const data = await getFamilyGrants(linkedId);
-      setSharedView(data);
+      const [grantsRes, alertsRes] = await Promise.allSettled([
+        getFamilyGrants(linkedId),
+        getPartnerAlerts(linkedId),
+      ]);
+      if (grantsRes.status === "fulfilled") setSharedView(grantsRes.value);
+      if (alertsRes.status === "fulfilled") {
+        setPartnerAlerts(alertsRes.value);
+        setSpousePhoneInput(alertsRes.value.spouse_phone || "");
+      }
     } catch {
       setFailed(true);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSavePartnerPhone(event) {
+    event.preventDefault();
+    setPartnerMsg("");
+
+    try {
+      await updatePartnerPhone(linkedId, spousePhoneInput.trim());
+      setPartnerMsg("Partner phone number updated successfully.");
+      await fetchSharedView();
+    } catch {
+      setPartnerMsg("Could not update partner phone. Please try again.");
     }
   }
 
@@ -141,6 +166,50 @@ export default function Family() {
           ))}
         </ul>
       </div>
+
+      <section className="section-block">
+        <h2 className="section-title">Spouse & Partner Support</h2>
+        <div className="paper-card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div>
+              <div className="eyebrow" style={{ color: "var(--green)" }}>Notification Only · No Full App Access</div>
+              <div className="card-title" style={{ marginTop: "0.2rem" }}>Appointment Alerts & Mental Guidance</div>
+            </div>
+            <Badge tone="sage">{partnerAlerts?.spouse_phone ? "Linked" : "Not Linked"}</Badge>
+          </div>
+          <p style={{ marginTop: "0.5rem" }}>
+            Your partner receives automated SMS notifications for upcoming check-ups and empathetic advice on how to mentally support you during {partnerAlerts?.stage_title || "each trimester"}. They cannot see your medical charts or private notes.
+          </p>
+
+          <form onSubmit={handleSavePartnerPhone} style={{ display: "grid", gap: "0.8rem", marginTop: "1rem" }}>
+            <label className="field-label" htmlFor="spouse-phone">
+              Partner's phone number
+            </label>
+            <div style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+              <input
+                id="spouse-phone"
+                className="text-input"
+                type="tel"
+                value={spousePhoneInput}
+                onChange={(e) => setSpousePhoneInput(e.target.value)}
+                placeholder="+91 98765 43210"
+                style={{ flex: 1, minWidth: "200px" }}
+              />
+              <button className="primary-button" type="submit">
+                {partnerAlerts?.spouse_phone ? "Update Number" : "Save Number"}
+              </button>
+            </div>
+            {partnerMsg && <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>{partnerMsg}</p>}
+          </form>
+
+          {partnerAlerts?.guidance && (
+            <div style={{ marginTop: "1.2rem", padding: "1rem", background: "rgba(168, 197, 181, 0.15)", borderRadius: "12px" }}>
+              <strong style={{ fontSize: "0.9rem", color: "var(--green-dark)" }}>Current advice sent to your partner for {partnerAlerts.guidance.title}:</strong>
+              <p style={{ margin: "0.3rem 0 0", fontSize: "0.9rem" }}>"{partnerAlerts.guidance.mental_support_actions[0]}"</p>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="section-block">
         <h2 className="section-title">Invite family</h2>

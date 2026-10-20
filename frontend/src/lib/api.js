@@ -100,6 +100,12 @@ export const getFamilySharedView = (womanId) =>
 export const getFamilyGrants = (womanId) =>
   send("GET", `/family/grants/${encodeURIComponent(womanId)}`);
 
+export const getPartnerAlerts = (womanId) =>
+  send("GET", `/family/partner-alerts/${encodeURIComponent(womanId)}`);
+
+export const updatePartnerPhone = (womanId, spouse_phone) =>
+  send("PUT", `/family/partner-phone/${encodeURIComponent(womanId)}`, { spouse_phone });
+
 export function getMedications(womanId) {
   return send("GET", `/clinical/medication/${womanId}`);
 }

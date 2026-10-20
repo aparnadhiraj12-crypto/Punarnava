@@ -1,4 +1,4 @@
-﻿"""
+"""
 Auth service.
 
 Not in the original v0 PRD scope -- added after, because the team decided
@@ -74,6 +74,7 @@ class SignupRequest(BaseModel):
     # "pregnant" or "delivered", sent by the mother at signup
     pregnancy_status: Optional[str] = None
     pregnancy_start_date: Optional[date] = None  # entered as told, never inferred
+    spouse_phone: Optional[str] = None  # Partner/Spouse phone for appointment alerts & guidance
     # only for role doctor / clinic / asha: the code the Punarnava team set on the server
     invite_code: Optional[str] = None
 
@@ -111,6 +112,7 @@ def signup(req: SignupRequest):
     user_id = str(uuid.uuid4())
 
     if req.role == "mother":
+        spouse_clean = req.spouse_phone.strip() if req.spouse_phone else None
         if req.pregnancy_status == "pregnant":
             # Still pregnant: no delivery date. A missing start date is allowed;
             # the record is marked incomplete and can be completed later.
@@ -118,6 +120,7 @@ def signup(req: SignupRequest):
                 name=req.name,
                 delivery_date=None,
                 pregnancy_start_date=req.pregnancy_start_date,
+                spouse_phone=spouse_clean,
                 incomplete=req.pregnancy_start_date is None,
             ))
         else:
@@ -125,9 +128,24 @@ def signup(req: SignupRequest):
                 name=req.name,
                 delivery_date=req.delivery_date or date.today(),
                 mode_of_delivery=req.mode_of_delivery,
+                spouse_phone=spouse_clean,
                 incomplete=req.delivery_date is None,
             ))
         linked_id = record["id"]
+
+        if spouse_clean:
+            from family.router import _GRANTS, DEFAULT_SCOPE
+            from datetime import datetime, timezone
+            grant_id = str(uuid.uuid4())
+            _GRANTS[grant_id] = {
+                "id": grant_id,
+                "woman_id": linked_id,
+                "grantee_name": "Spouse / Partner",
+                "phone": spouse_clean,
+                "scope": list(set(DEFAULT_SCOPE + ["mental_support"])),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "revoked": False,
+            }
     else:
         linked_id = _make_linked_id(req.role)
 

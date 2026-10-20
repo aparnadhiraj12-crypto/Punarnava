@@ -31,6 +31,7 @@ export default function Signup() {
   const [name, setName] = useState("");
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
+  const [spousePhone, setSpousePhone] = useState("");
   const [start, setStart] = useState("");
   const [delivery, setDelivery] = useState("");
   const [mode, setMode] = useState("");
@@ -51,6 +52,7 @@ export default function Signup() {
       phone_or_email: id.trim(),
       password: pw,
       pregnancy_status: status,
+      spouse_phone: spousePhone.trim() || undefined,
     };
     if (status === "pregnant") {
       if (start) payload.pregnancy_start_date = start;
@@ -108,6 +110,17 @@ export default function Signup() {
             onChange={(e) => setId(e.target.value)} required autoComplete="username" />
           <Field label="Password (at least 8 characters)" type="password" minLength={8} value={pw}
             onChange={(e) => setPw(e.target.value)} required autoComplete="new-password" />
+
+          <Field
+            label="Spouse / Partner's phone number (optional)"
+            placeholder="+91 98765 43210"
+            value={spousePhone}
+            onChange={(e) => setSpousePhone(e.target.value)}
+            autoComplete="tel"
+          />
+          <p className="section-note" style={{ marginTop: "-0.4rem", marginBottom: "0.2rem" }}>
+            We'll send your partner appointment notifications and stage-specific guidance on how they can support you mentally. They will not have full access to your medical app.
+          </p>
 
           {status === "pregnant" && (
             <>

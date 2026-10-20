@@ -99,6 +99,7 @@ class WomanRecord(BaseModel):
     age: Optional[int] = None
     village: Optional[str] = None
     phone: Optional[str] = None
+    spouse_phone: Optional[str] = None  # Partner/Spouse phone for appointment alerts & guidance
     medications: list[str] = []
     food_preferences: list[str] = []
     consent: Optional[bool] = None
