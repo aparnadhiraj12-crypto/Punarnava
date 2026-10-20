@@ -115,14 +115,18 @@ PARTNER_STAGE_GUIDANCE = {
     }
 }
 
-def generate_partner_notifications(rec: dict, stage: str, spouse_phone: str | None = None) -> list[dict]:
-    guidance = PARTNER_STAGE_GUIDANCE.get(stage, PARTNER_STAGE_GUIDANCE["pregnancy_t1"])
+def generate_partner_notifications(rec: dict, stage: str | None, spouse_phone: str | None = None) -> list[dict]:
+    guidance = PARTNER_STAGE_GUIDANCE.get(stage)
     milestones = rec.get("milestones", [])
     notifications = []
 
     for m in milestones:
         if m.get("state") in ("due", "pending"):
-            action_tip = guidance["mental_support_actions"][0] if guidance["mental_support_actions"] else ""
+            action_tip = (
+                guidance["mental_support_actions"][0]
+                if guidance and guidance["mental_support_actions"]
+                else ""
+            )
             notif = {
                 "id": f"notif-{m['rule_id']}",
                 "rule_id": m["rule_id"],
@@ -136,7 +140,7 @@ def generate_partner_notifications(rec: dict, stage: str, spouse_phone: str | No
                     f"Partner mental support tip: {action_tip}"
                 ),
                 "mental_support_tip": action_tip,
-                "stage_title": guidance["title"],
+                "stage_title": guidance["title"] if guidance else None,
                 "notice": "Partner notification only. No full medical record access."
             }
             notifications.append(notif)
@@ -202,11 +206,13 @@ def list_grants(woman_id: str, token: str):
     return {"grants": [g for g in _GRANTS.values() if g["woman_id"] == woman_id]}
 
 
-def _stage_for(rec: dict):
+def _stage_for(rec: dict) -> str | None:
     """Stage only, never her clinical_events (wellness compliance boundary)."""
     day = rec.get("postpartum_day")
     if day is None or day < 0:
-        tri = rec.get("trimester") or 1
+        tri = rec.get("trimester")
+        if tri is None:
+            return None
         return f"pregnancy_t{tri}"
     if day < 42:
         return "postpartum_early"
@@ -233,7 +239,7 @@ def shared_view(grant_id: str):
     prescribed = list(reversed(_PRESCRIBED.get(woman_id, [])))
     stage = _stage_for(rec)
     scope = grant.get("scope", DEFAULT_SCOPE)
-    guidance = PARTNER_STAGE_GUIDANCE.get(stage, PARTNER_STAGE_GUIDANCE["pregnancy_t1"])
+    guidance = PARTNER_STAGE_GUIDANCE.get(stage)
     notifications = generate_partner_notifications(rec, stage, grant.get("phone")) if "appointments" in scope else []
 
     return {
@@ -243,11 +249,11 @@ def shared_view(grant_id: str):
         "self_reported": self_entries if "appointments" in scope else [],
         "prescribed_medication": prescribed,
         "stage": stage if "stage" in scope else None,
-        "stage_title": guidance["title"],
-        "mental_support": guidance if "mental_support" in scope else None,
+        "stage_title": guidance["title"] if guidance else None,
+        "mental_support": guidance if "mental_support" in scope and guidance else None,
         "notifications": notifications,
         "is_partner_view": True,
-        "notice": "Partner View: You receive appointment alerts and emotional guidance. You do not have access to full medical records or private journals.",
+        "notice": "Partner View: You receive appointment alerts and emotional guidance. You do not have access to full medical records or private notes.",
         "diet": [c for c in _CONTENT if "diet" in scope and stage and c["stage"] == stage and c["type"] in ("diet", "hydration")],
         "exercise": [c for c in _CONTENT if "classes" in scope and stage and c["stage"] == stage and c["type"] == "exercise"],
         "classes": [pr for pr in _PROVIDERS if "classes" in scope and pr["type"] in ("yoga", "gym")],
@@ -266,7 +272,7 @@ def get_partner_alerts(woman_id: str, token: str):
     rec = _with_milestones(_WOMEN[woman_id])
     stage = _stage_for(rec)
     spouse_phone = rec.get("spouse_phone")
-    guidance = PARTNER_STAGE_GUIDANCE.get(stage, PARTNER_STAGE_GUIDANCE["pregnancy_t1"])
+    guidance = PARTNER_STAGE_GUIDANCE.get(stage)
     notifications = generate_partner_notifications(rec, stage, spouse_phone)
     grant_id = None
     for g in _GRANTS.values():
@@ -278,7 +284,7 @@ def get_partner_alerts(woman_id: str, token: str):
         "woman_id": woman_id,
         "spouse_phone": spouse_phone,
         "stage": stage,
-        "stage_title": guidance["title"],
+        "stage_title": guidance["title"] if guidance else None,
         "guidance": guidance,
         "notifications": notifications,
         "grant_id": grant_id,
