@@ -20,7 +20,7 @@ export default defineConfig({
         display: "standalone",
         icons: [],
       },
-      workbox: { globPatterns: ["**/*.{js,css,html,ico,png,svg}"] },
+      workbox: { globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"] },
     }),
   ],
 });

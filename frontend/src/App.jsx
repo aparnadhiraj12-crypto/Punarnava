@@ -183,6 +183,14 @@ export default function App() {
             </RoleGuard>
           }
         />
+        <Route
+          path="/a/mother/:id/log"
+          element={
+            <RoleGuard allowedRoles={["asha"]}>
+              <VisitLog />
+            </RoleGuard>
+          }
+        />
 
         <Route
           path="/d"

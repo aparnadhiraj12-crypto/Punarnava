@@ -71,7 +71,7 @@ export default function Diet() {
           <button
             key={value}
             type="button"
-            className={stage === value ? "button-primary" : "button-secondary"}
+            className={`button ${stage === value ? "button-primary" : "button-secondary"}`}
             onClick={() => setStage(value)}
           >
             {label}
@@ -84,7 +84,7 @@ export default function Diet() {
           <button
             key={value}
             type="button"
-            className={tab === value ? "button-primary" : "button-secondary"}
+            className={`button ${tab === value ? "button-primary" : "button-secondary"}`}
             onClick={() => setTab(value)}
           >
             {label}

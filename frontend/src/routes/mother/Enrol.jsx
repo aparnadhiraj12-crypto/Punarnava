@@ -515,21 +515,23 @@ export default function Enrol() {
             </>
           )}
 
-          <div className="button-row">
-            {step > 1 && (
-              <Button
-                type="button"
-                tone="secondary"
-                onClick={() => setStep(step - 1)}
-              >
-                Back
-              </Button>
-            )}
+          {step < 10 && (
+            <div className="button-row">
+              {step > 1 && (
+                <Button
+                  type="button"
+                  tone="secondary"
+                  onClick={() => setStep(step - 1)}
+                >
+                  Back
+                </Button>
+              )}
 
-            <Button type="submit">
-              Continue <Icon name="arrow" />
-            </Button>
-          </div>
+              <Button type="submit">
+                Continue <Icon name="arrow" />
+              </Button>
+            </div>
+          )}
         </form>
       </AppShell>
     );

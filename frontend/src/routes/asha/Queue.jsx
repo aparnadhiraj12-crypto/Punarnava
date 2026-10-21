@@ -90,7 +90,9 @@ export default function Queue() {
                 )}
                 <PatientCode code={m.mother_code} compact />
               </div>
-              <Badge tone={overdue ? "terra" : "sage"}>{overdue ? `${m.max_days_overdue} days overdue` : "Up to date"}</Badge>
+              <Badge tone={overdue ? "mustard" : "sage"}>
+                {overdue ? `${m.max_days_overdue} day${m.max_days_overdue === 1 ? "" : "s"} overdue` : "Up to date"}
+              </Badge>
 
               {!isPending && (
                 <div className="queue-actions">

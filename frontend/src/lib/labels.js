@@ -24,11 +24,12 @@ export const humanizeId = humanize;
 // tone  -> <Badge tone>   (sage | terra | mustard | ink)
 // css   -> class suffix used by the timeline / preview / summary dots
 // Every state also carries a text label, so colour is never the only signal (NFR-13).
+// Due and overdue share ONE "needs action" colour: no graded or risk colours (docs/compliance.md).
 const STATES = {
   due:            { label: "Due",            tone: "mustard", css: "due" },
   done:           { label: "Completed",      tone: "sage",    css: "complete" },
   pending:        { label: "Upcoming",       tone: "mustard", css: "upcoming" },
-  missed:         { label: "Overdue",        tone: "terra",   css: "overdue" },
+  missed:         { label: "Overdue",        tone: "mustard", css: "overdue" },
   not_applicable: { label: "Not applicable", tone: "ink",     css: "na" },
 };
 

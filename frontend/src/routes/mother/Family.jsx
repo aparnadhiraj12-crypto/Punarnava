@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import Badge from "../../components/Badge";
+import Button from "../../components/Button";
 import { Loading, Unreachable, EmptyState } from "../../components/Page";
 import { getSession } from "../../lib/session";
 import {
@@ -181,23 +182,20 @@ export default function Family() {
             Your partner receives automated SMS notifications for upcoming check-ups and empathetic advice on how to mentally support you during {partnerAlerts?.stage_title || "each trimester"}. They cannot see your medical charts or private notes.
           </p>
 
-          <form onSubmit={handleSavePartnerPhone} style={{ display: "grid", gap: "0.8rem", marginTop: "1rem" }}>
-            <label className="field-label" htmlFor="spouse-phone">
-              Partner's phone number
-            </label>
-            <div style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+          <form onSubmit={handleSavePartnerPhone} className="field" style={{ marginTop: "1rem" }}>
+            <label htmlFor="spouse-phone">Partner's phone number</label>
+            <div style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap", alignItems: "center" }}>
               <input
                 id="spouse-phone"
-                className="text-input"
                 type="tel"
                 value={spousePhoneInput}
                 onChange={(e) => setSpousePhoneInput(e.target.value)}
                 placeholder="+91 98765 43210"
                 style={{ flex: 1, minWidth: "200px" }}
               />
-              <button className="primary-button" type="submit">
+              <Button type="submit">
                 {partnerAlerts?.spouse_phone ? "Update Number" : "Save Number"}
-              </button>
+              </Button>
             </div>
             {partnerMsg && <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>{partnerMsg}</p>}
           </form>
@@ -214,42 +212,42 @@ export default function Family() {
       <section className="section-block">
         <h2 className="section-title">Invite family</h2>
 
-        <form className="paper-card" onSubmit={inviteFamilyMember}>
-          <label className="field-label" htmlFor="family-phone">
-            Family member phone
+        <form className="paper-card" onSubmit={inviteFamilyMember} style={{ display: "grid", gap: "1rem" }}>
+          <label className="field" htmlFor="family-phone">
+            <span>Family member phone</span>
+            <input
+              id="family-phone"
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="Enter phone number"
+            />
           </label>
-
-          <input
-            id="family-phone"
-            className="text-input"
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="Enter phone number"
-          />
 
           <div className="section-block">
             <h3 className="card-title">Choose what to share</h3>
 
             <div className="simple-list">
               {SHARING_OPTIONS.map((item) => (
-                <label key={item.id} className="paper-card">
+                <label key={item.id} className="paper-card" style={{ display: "flex", gap: "0.8rem", alignItems: "flex-start", cursor: "pointer", margin: "0.4rem 0" }}>
                   <input
                     type="checkbox"
                     checked={selected[item.id]}
                     onChange={() => toggleOption(item.id)}
+                    style={{ marginTop: "0.25rem", width: "20px", height: "20px", accentColor: "var(--green)" }}
                   />
-
-                  <strong>{item.label}</strong>
-                  <p>{item.description}</p>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <p style={{ margin: "0.2rem 0 0" }}>{item.description}</p>
+                  </div>
                 </label>
               ))}
             </div>
           </div>
 
-          <button className="primary-button" type="submit">
+          <Button type="submit">
             Invite family member
-          </button>
+          </Button>
 
           {message && <p className="muted">{message}</p>}
         </form>
@@ -279,7 +277,7 @@ export default function Family() {
         {sharedView?.grants?.length > 0 && (
           <div className="simple-list">
             {sharedView.grants.map((grant) => (
-              <article key={grant.id} className="paper-card">
+              <article key={grant.id} className="paper-card" style={{ display: "grid", gap: "0.6rem" }}>
                 <div className="card-title">
                   {grant.phone || grant.name || "Family member"}
                 </div>
@@ -292,13 +290,15 @@ export default function Family() {
                   ))}
                 </ul>
 
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => revokeAccess(grant.id)}
-                >
-                  Revoke access
-                </button>
+                <div>
+                  <Button
+                    tone="secondary"
+                    type="button"
+                    onClick={() => revokeAccess(grant.id)}
+                  >
+                    Revoke access
+                  </Button>
+                </div>
               </article>
             ))}
           </div>
