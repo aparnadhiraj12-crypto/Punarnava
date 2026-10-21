@@ -32,6 +32,7 @@ from clinical.router import _PRESCRIBED, _BP_READINGS
 from wellness.router import _TASTE_PREFS, _SAVED_PLANS
 from family.router import _GRANTS
 from report.router import _HANDOFF
+from diet.router import router as diet_router
 from ingestion.router import _BY_CLIENT_ID
 
 # Every store that must survive a restart. The name is the DB key: don't rename.
@@ -142,6 +143,7 @@ app.include_router(clinical_router, prefix="/api/clinical", tags=["clinical"])
 app.include_router(meditation_router, prefix="/api/meditation", tags=["meditation"])
 app.include_router(family_router, prefix="/api/family", tags=["family"])
 app.include_router(report_router, prefix="/api/report", tags=["report"])
+app.include_router(diet_router, prefix="/api/diet", tags=["diet"])
 
 @app.get("/api/health")
 def health():

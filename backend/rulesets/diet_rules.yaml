@@ -1,0 +1,253 @@
+# PUNARNAVA diet ruleset
+#
+# !!! VERIFY !!!
+# Every rule and citation below is a DRAFT for the prototype. Nothing here has
+# been confirmed against the published ICMR-NIN / FOGSI / MoHFW / WHO source.
+# A clinician or nutritionist must sign off each rule before a real mother
+# sees it. Do not treat this content as correct.
+#
+# Format rules (checked by tests/test_diet_rules.py):
+#   - layer: safety | stage | bmi | condition | symptom | preference
+#   - order: plain number, lower shows first. Not a score.
+#   - No key named priority, severity, score, tier, rank, risk_level, acuity.
+#   - No calorie, gram or dose numbers anywhere in advice text.
+#   - Safety rules show FIXED text whenever the symptom is ticked. They never
+#     assess how bad the symptom is (compliance Rule 2).
+#   - when: all keys must match (AND). condition/symptom lists match if ANY
+#     listed item is present.
+
+version: "0.1.0-draft"
+
+rules:
+  - id: DIET-SAFE-01
+    layer: safety
+    order: 1
+    when:
+      symptom: [nausea, vomiting]
+    advice:
+      note: "If you cannot keep fluids down for a day, keep vomiting, or feel very weak or dizzy, go to a doctor or health centre today. Do not wait."
+    citation: "VERIFY - MoHFW danger signs in pregnancy (draft placeholder)"
+
+  - id: DIET-SAFE-02
+    layer: safety
+    order: 2
+    when:
+      condition: [gdm, diabetes, hypertension, hypothyroid, anaemia]
+    advice:
+      note: "Your doctor or dietitian's advice always comes first. This is general food guidance, not a treatment plan."
+    citation: "VERIFY - scope boundary, docs/compliance.md (draft placeholder)"
+
+  - id: DIET-STG-T1-01
+    layer: stage
+    order: 10
+    when:
+      stage: pregnant
+      trimester: 1
+    advice:
+      eat:
+        - "Small meals more often through the day"
+        - "Dal, curd or milk for protein, and eggs if you eat them"
+        - "Leafy greens and seasonal fruit"
+      limit:
+        - "Long gaps without eating"
+      tip: "Take your folic acid and IFA tablets as your doctor or ANM advised."
+    citation: "VERIFY - ICMR-NIN Dietary Guidelines for Indians, pregnancy (draft placeholder)"
+
+  - id: DIET-STG-PP-LAC-01
+    layer: stage
+    order: 11
+    when:
+      stage: postpartum
+      lactating: true
+    advice:
+      eat:
+        - "Extra water, buttermilk and other fluids through the day"
+        - "Dal, beans, milk or curd, and eggs, fish or chicken if you eat them"
+        - "Leafy greens, nuts and seasonal fruit"
+      limit:
+        - "Skipping meals"
+      tip: "Do not try to lose weight quickly while breastfeeding. Your body is recovering and making milk."
+    citation: "VERIFY - ICMR-NIN Dietary Guidelines for Indians, lactation (draft placeholder)"
+
+  - id: DIET-COND-ANAEMIA-01
+    layer: condition
+    order: 30
+    when:
+      condition: [anaemia]
+    advice:
+      eat:
+        - "Leafy greens, dal, chana and rajma"
+        - "Eggs, fish or chicken if you eat them"
+        - "Lemon, amla or guava with meals to help the body use iron"
+      limit:
+        - "Tea or coffee within an hour of a meal or your iron tablet"
+      tip: "Food helps but does not replace your IFA tablets. Keep taking them as advised."
+    citation: "VERIFY - MoHFW Anaemia Mukt Bharat / POSHAN guidance (draft placeholder)"
+
+  - id: DIET-COND-GDM-01
+    layer: condition
+    order: 31
+    when:
+      condition: [gdm, diabetes]
+    advice:
+      eat:
+        - "Millets like ragi, jowar or bajra, and whole grains instead of polished rice or maida"
+        - "Dal, curd, eggs or paneer with each meal"
+        - "Plenty of vegetables"
+      limit:
+        - "Sweets, sugary drinks and packaged fruit juice"
+        - "Very large portions of rice or roti at one meal"
+      tip: "Smaller meals spread through the day are easier on blood sugar. Ask your doctor about a short walk after meals."
+    citation: "VERIFY - ICMR-NIN / FOGSI gestational diabetes guidance (draft placeholder)"
+
+  - id: DIET-SYM-NAUSEA-01
+    layer: symptom
+    order: 50
+    when:
+      symptom: [nausea]
+    advice:
+      eat:
+        - "A dry biscuit, toast or puffed rice before getting out of bed"
+        - "Small sips of water, ginger tea or nimbu pani between meals"
+      limit:
+        - "Strong smells, very oily food and large meals"
+      tip: "Ask someone at home to cook so you can stay away from kitchen smells."
+    citation: "VERIFY - FOGSI nausea and vomiting in pregnancy guidance (draft placeholder)"
+  - id: DIET-STG-T2-01
+    layer: stage
+    order: 12
+    when:
+      stage: pregnant
+      trimester: 2
+    advice:
+      eat:
+        - "Milk, curd, ragi and other calcium-rich foods every day"
+        - "Dal, beans, eggs or fish if you eat them, for protein"
+        - "Leafy greens, vegetables and seasonal fruit"
+      limit:
+        - "Fried snacks and sweets as everyday food"
+      tip: "Take your IFA and calcium tablets as your doctor or ANM advised, and keep tea or coffee away from the iron tablet."
+    citation: "VERIFY - ICMR-NIN Dietary Guidelines for Indians, pregnancy (draft placeholder)"
+
+  - id: DIET-STG-T3-01
+    layer: stage
+    order: 13
+    when:
+      stage: pregnant
+      trimester: 3
+    advice:
+      eat:
+        - "Small light meals more often, as the stomach has less room now"
+        - "Dal, curd, vegetables and fruit"
+        - "Plenty of water and fibre-rich foods to keep the bowels regular"
+      limit:
+        - "Very oily or spicy food that can cause heartburn"
+      tip: "Keep easy snacks and a water bottle ready in your hospital bag."
+    citation: "VERIFY - ICMR-NIN Dietary Guidelines for Indians, pregnancy (draft placeholder)"
+
+  - id: DIET-STG-PP-01
+    layer: stage
+    order: 14
+    when:
+      stage: postpartum
+      lactating: false
+    advice:
+      eat:
+        - "Regular meals with dal, vegetables and whole grains"
+        - "Iron-rich foods like leafy greens, chana and jaggery in small amounts"
+        - "Enough water and fluids through the day"
+      limit:
+        - "Skipping meals"
+      tip: "Your body is still recovering. Avoid crash diets, and ask your doctor before starting any weight-loss plan."
+    citation: "VERIFY - ICMR-NIN / FOGSI postnatal nutrition guidance (draft placeholder)"
+
+  - id: DIET-COND-HTN-01
+    layer: condition
+    order: 32
+    when:
+      condition: [hypertension]
+    advice:
+      eat:
+        - "Fresh home-cooked food, vegetables, fruit and curd"
+        - "Enough water through the day"
+      limit:
+        - "Extra salt, pickles, papad and packaged salty snacks"
+      tip: "If you get a severe headache, swelling of the face or hands, or blurred vision, see Danger Signs and contact your ASHA or doctor straight away."
+    citation: "VERIFY - MoHFW / FOGSI hypertension in pregnancy guidance (draft placeholder)"
+
+  - id: DIET-COND-THYROID-01
+    layer: condition
+    order: 33
+    when:
+      condition: [hypothyroid]
+    advice:
+      eat:
+        - "Regular meals with dal, eggs or milk, and vegetables"
+        - "Iodised salt in your usual small amount"
+      tip: "Take your thyroid tablet exactly as your doctor told you. Ask your doctor how long to keep it apart from food, iron tablets and calcium."
+    citation: "VERIFY - ICMR-NIN / FOGSI thyroid in pregnancy guidance (draft placeholder)"
+
+  - id: DIET-SYM-CONSTIP-01
+    layer: symptom
+    order: 51
+    when:
+      symptom: [constipation]
+    advice:
+      eat:
+        - "Whole grains, ragi, dal, vegetables and fruit with skin where safe"
+        - "More water and warm fluids through the day"
+      limit:
+        - "Maida, white bread and very dry or fried snacks"
+      tip: "A gentle walk helps. Ask your ANM or doctor before taking any medicine for constipation."
+    citation: "VERIFY - FOGSI constipation in pregnancy and postpartum guidance (draft placeholder)"
+
+  - id: DIET-SYM-HEARTBURN-01
+    layer: symptom
+    order: 52
+    when:
+      symptom: [heartburn]
+    advice:
+      eat:
+        - "Small meals, eaten slowly"
+        - "Cold milk or curd if it settles your stomach"
+      limit:
+        - "Very spicy, oily or sour food"
+        - "Lying down straight after eating"
+      tip: "Rest with your head and shoulders raised on extra pillows."
+    citation: "VERIFY - FOGSI heartburn in pregnancy guidance (draft placeholder)"
+
+  - id: DIET-SYM-APPETITE-01
+    layer: symptom
+    order: 53
+    when:
+      symptom: [low_appetite]
+    advice:
+      eat:
+        - "Small meals more often, built around foods you like"
+        - "Milk, curd, banana, nuts or khichdi for easy energy"
+      tip: "If you are hardly eating for several days, tell your ASHA or doctor."
+    citation: "VERIFY - ICMR-NIN maternal nutrition guidance (draft placeholder)"
+
+  - id: DIET-PREF-EGG-01
+    layer: preference
+    order: 70
+    when:
+      diet_type: egg
+    advice:
+      eat:
+        - "Boiled egg or egg curry as an easy protein"
+      limit:
+        - "Raw or undercooked eggs"
+    citation: "VERIFY - ICMR-NIN protein sources guidance (draft placeholder)"
+
+  - id: DIET-PREF-NONVEG-01
+    layer: preference
+    order: 71
+    when:
+      diet_type: nonveg
+    advice:
+      eat:
+        - "Well-cooked fish, chicken or eggs in curry or soup"
+      limit:
+        - "Raw or undercooked meat, fish or eggs"
+    citation: "VERIFY - ICMR-NIN protein sources guidance (draft placeholder)"
