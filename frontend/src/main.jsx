@@ -1,15 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "@fontsource/dm-sans";
-import "@fontsource/dm-sans/500.css";
-import "@fontsource/dm-sans/600.css";
-import "@fontsource/dm-sans/700.css";
-import "@fontsource/fraunces";
-import "@fontsource/fraunces/600.css";
-import "@fontsource/ibm-plex-mono";
-import "@fontsource/ibm-plex-mono/500.css";
-import "./index.css";
 import App from "./App";
+import "@fontsource/dm-sans/latin-400.css";
+import "@fontsource/dm-sans/latin-500.css";
+import "@fontsource/dm-sans/latin-600.css";
+import "@fontsource/dm-sans/latin-700.css";
+import "@fontsource/fraunces/latin-500.css";
+import "@fontsource/fraunces/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
+import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
