@@ -69,6 +69,7 @@ class WellnessContent(BaseModel):
     limit_notes: Optional[str] = None  # diet only: clinician-approved 'limit' text; empty until supplied
     nutrients: Optional[Nutrients] = None  # diet only
     taste_tags: list[str] = []  # vegetarian, spicy, mild, regional cuisine names etc.
+    condition_tags: list[str] = []  # gdm, nausea, low_weight, sickness -- self-reported profile only
     source_citation: str
 
 
@@ -85,6 +86,23 @@ class Provider(BaseModel):
 class TastePreference(BaseModel):
     woman_id: str
     tags: list[str] = []  # vegetarian, spicy, mild, regional names, dislikes (prefixed "avoid:")
+
+class DietProfile(BaseModel):
+    """Self-reported diet profile set by the mother herself.
+    ALL fields are things SHE volunteers. None are inferred from her
+    clinical_events -- that stays on the compliance side of the boundary
+    (see module docstring). The condition flags here are her OWN answers
+    to 'do you have X?' -- they let us show her the right CONTENT SECTION,
+    not generate a personalised prescription."""
+    woman_id: str
+    weight_kg: Optional[float] = None         # self-reported weight
+    nausea_level: str = "none"                # "none" | "mild" | "severe"
+    current_sickness: str = "none"            # "none" | "cold" | "fever" | "vomiting"
+    has_gdm: bool = False                     # self-reported (she says yes/no)
+    is_vegetarian: bool = False
+    is_vegan: bool = False
+    food_dislikes: list[str] = []             # e.g. ["fish", "eggs"]
+    food_preferences: list[str] = []          # e.g. ["South Indian", "spicy"]
 
 
 _CONTENT: list[dict] = [
@@ -274,6 +292,118 @@ _CONTENT: list[dict] = [
              "or stop if something feels wrong, and check with your doctor.",
         source_citation="VERIFY -- national antenatal activity guidance (draft placeholder)",
     ).model_dump(),
+    # --- GDM-specific items ---
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t1", region="general",
+        title="GDM-friendly first trimester foods",
+        body="Low-glycaemic foods -- broken wheat (dalia), oats, barley, and most vegetables -- "
+             "help keep blood sugar steady. Pair carbohydrates with a protein source at each "
+             "meal: lentils, eggs, paneer, or curd.",
+        avoid_notes="White rice in large portions, sugary drinks, and fruit juices raise blood "
+                    "glucose quickly -- keep portions small and prefer whole fruit over juice.",
+        nutrients=Nutrients(calories=280, protein_g=12, fiber_g=6, calcium_mg=120).model_dump(),
+        taste_tags=["vegetarian", "mild"], condition_tags=["gdm"],
+        source_citation="VERIFY -- FOGSI GDM dietary guidance 2022 (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t2", region="general",
+        title="GDM-safe second trimester meals",
+        body="Small, frequent meals (every 2-3 hours) are better than two or three large ones "
+             "when managing gestational diabetes. Include a palm-sized protein at each meal. "
+             "Choose whole grains -- red rice, ragi, jowar -- over refined ones.",
+        avoid_notes="Large portions of rice or roti at a single sitting. Sweetened lassi, "
+                    "milkshakes, and packaged snacks.",
+        nutrients=Nutrients(calories=300, protein_g=14, fiber_g=5, iron_mg=4, calcium_mg=150).model_dump(),
+        taste_tags=["vegetarian"], condition_tags=["gdm"],
+        source_citation="VERIFY -- FOGSI GDM dietary guidance 2022 (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t3", region="general",
+        title="GDM-safe third trimester meals",
+        body="As baby grows, blood sugar can become harder to control. Stick to three small "
+             "meals and three snacks. Good snack ideas: a small handful of nuts, a boiled egg, "
+             "or curd with a little flaxseed. Walk for 10-15 minutes after your main meals.",
+        avoid_notes="Mangoes, grapes, bananas, and chikoo in large quantities. Sweet pongal, "
+                    "halwa, and similar festival foods.",
+        nutrients=Nutrients(calories=320, protein_g=15, fiber_g=5, iron_mg=5, calcium_mg=180).model_dump(),
+        taste_tags=["vegetarian"], condition_tags=["gdm"],
+        source_citation="VERIFY -- FOGSI GDM dietary guidance 2022 (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="postpartum_early", region="general",
+        title="GDM after delivery -- what changes",
+        body="Blood sugar usually normalises quickly after delivery, but women who had GDM have "
+             "a higher chance of type 2 diabetes later. Keep eating low-GI foods and walking "
+             "regularly. Your doctor will check your blood sugar at the six-week review.",
+        condition_tags=["gdm"],
+        source_citation="VERIFY -- FOGSI postpartum GDM guidance (draft placeholder)",
+    ).model_dump(),
+    # --- Nausea-specific items ---
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t1", region="general",
+        title="Nausea: foods that are easier to keep down",
+        body="Dry, plain foods eaten in small amounts are often easiest: dry biscuits or toast "
+             "before getting out of bed, plain rice or khichdi, banana. Cold foods tend to have "
+             "less smell and may be easier than hot meals. Ginger tea or ginger biscuits can "
+             "help some women.",
+        avoid_notes="Very oily, heavily spiced, or strongly smelling foods often make nausea "
+                    "worse. Avoid eating a large meal on an empty stomach.",
+        nutrients=Nutrients(calories=200, protein_g=4, fiber_g=2).model_dump(),
+        taste_tags=["mild", "vegetarian"], condition_tags=["nausea"],
+        source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t1", region="general",
+        title="Nausea: keeping fluids up when eating is hard",
+        body="Small sips of cold water, coconut water, or nimbu pani throughout the day are "
+             "better than large glasses at once when nausea is bad. Ice chips or frozen fruit "
+             "are an option if even water is difficult. If you cannot keep any fluids down for "
+             "more than 24 hours, contact your provider.",
+        condition_tags=["nausea"],
+        source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
+    ).model_dump(),
+    # --- Low weight / underweight items ---
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t1", region="general",
+        title="Building up when weight is low -- first trimester",
+        body="Calorie-dense foods that are easy to add: a spoon of ghee on dal or rice, "
+             "a small handful of nuts between meals, full-fat curd, and peanut chutney with "
+             "meals. Eating 5-6 smaller meals is often easier than 3 large ones.",
+        nutrients=Nutrients(calories=400, protein_g=14, fiber_g=5, calcium_mg=150).model_dump(),
+        taste_tags=["vegetarian"], condition_tags=["low_weight"],
+        source_citation="VERIFY -- ICMR recommended dietary allowances (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t2", region="general",
+        title="Building up when weight is low -- second trimester",
+        body="The second trimester is a good time to focus on protein: eggs, paneer, chicken, "
+             "fish, or lentils at every meal. Add sesame seeds (til) and flaxseed to rotis or "
+             "rice. A banana with peanut butter or curd is a useful snack.",
+        nutrients=Nutrients(calories=420, protein_g=18, fiber_g=5, iron_mg=5, calcium_mg=180).model_dump(),
+        taste_tags=["vegetarian"], condition_tags=["low_weight"],
+        source_citation="VERIFY -- ICMR recommended dietary allowances (draft placeholder)",
+    ).model_dump(),
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t3", region="general",
+        title="Building up when weight is low -- third trimester",
+        body="Baby's weight gain is fastest in the third trimester. Keep calorie-dense foods "
+             "frequent: nut-based chikki, til ladoo, dates, and full-fat dairy. If you have "
+             "been gaining less than expected, ask your doctor or a dietitian for a review.",
+        nutrients=Nutrients(calories=450, protein_g=16, fiber_g=5, iron_mg=6, calcium_mg=200).model_dump(),
+        taste_tags=["vegetarian"], condition_tags=["low_weight"],
+        source_citation="VERIFY -- ICMR recommended dietary allowances (draft placeholder)",
+    ).model_dump(),
+    # --- Vomiting / acute sickness items ---
+    WellnessContent(
+        id=str(uuid.uuid4()), type="diet", stage="pregnancy_t1", region="general",
+        title="Eating when you have vomiting or a fever",
+        body="When you are unwell, the goal is to keep something down and stay hydrated. "
+             "Plain rice water (kanji), ORS, coconut water, or diluted buttermilk are easy "
+             "to absorb. Return to normal eating as soon as you feel ready. If you have a "
+             "fever above 38 C or cannot keep fluids down, contact your provider.",
+        condition_tags=["sickness"],
+        source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
+    ).model_dump(),
 ]
 
 _PROVIDERS: list[dict] = [
@@ -313,6 +443,7 @@ _PROVIDERS: list[dict] = [
 # clinical_events, both are things SHE sets.
 _TASTE_PREFS: dict[str, list[str]] = {}       # woman_id -> tags
 _SAVED_PLANS: dict[str, list[dict]] = {}      # woman_id -> [{content_id, saved_at}]
+_DIET_PROFILES: dict[str, dict] = {}          # woman_id -> DietProfile.model_dump()
 
 
 @router.get("/content")
@@ -379,3 +510,78 @@ def remove_from_plan(woman_id: str, content_id: str, token: str):
     require_self(token, woman_id)
     _SAVED_PLANS[woman_id] = [s for s in _SAVED_PLANS.get(woman_id, []) if s["content_id"] != content_id]
     return {"status": "removed"}
+
+@router.put("/diet-profile/{woman_id}")
+def save_diet_profile(woman_id: str, profile: DietProfile, token: str):
+    """She fills this in herself. Used only to show her relevant CONTENT
+    sections -- never to generate clinical recommendations."""
+    require_self(token, woman_id)
+    _DIET_PROFILES[woman_id] = profile.model_dump()
+    return {"status": "saved", "woman_id": woman_id}
+
+
+@router.get("/diet-profile/{woman_id}")
+def get_diet_profile(woman_id: str, token: str):
+    require_self(token, woman_id)
+    profile = _DIET_PROFILES.get(woman_id)
+    if profile is None:
+        return {"profile": None}
+    return {"profile": profile}
+
+
+@router.get("/diet-content/{woman_id}")
+def get_diet_content_personalized(woman_id: str, token: str, stage: Optional[str] = None, region: Optional[str] = None):
+    """Returns content filtered by stage/region PLUS condition-tagged items
+    that match her self-reported diet profile. Content is pre-written,
+    not generated. This is a content-library filter, not a clinical recommendation."""
+    require_self(token, woman_id)
+    profile = _DIET_PROFILES.get(woman_id, {})
+    # Build list of active condition tags from self-reported profile
+    active_conditions: list[str] = []
+    if profile.get("has_gdm"):
+        active_conditions.append("gdm")
+    nausea = profile.get("nausea_level", "none")
+    if nausea in ("mild", "severe"):
+        active_conditions.append("nausea")
+    sickness = profile.get("current_sickness", "none")
+    if sickness in ("fever", "vomiting"):
+        active_conditions.append("sickness")
+    weight = profile.get("weight_kg")
+    if weight and weight < 45:
+        active_conditions.append("low_weight")
+
+    results = _CONTENT
+    if stage:
+        results = [c for c in results if c["stage"] == stage]
+    if region:
+        results = [c for c in results if c["region"] in (region, "general")]
+
+    # Split into base content and condition-specific "for_you" items
+    base = [c for c in results if not c.get("condition_tags")]
+    for_you = [c for c in _CONTENT  # condition items are not stage-filtered, show across stages
+               if c.get("condition_tags") and
+               any(tag in active_conditions for tag in c["condition_tags"]) and
+               (not stage or c["stage"] == stage or True)]  # show for current stage if matching
+
+    # For condition cards, prefer same stage, but include cross-stage if nothing matches
+    for_you_same_stage = [c for c in for_you if not stage or c["stage"] == stage]
+    if for_you_same_stage:
+        for_you = for_you_same_stage
+
+    is_vegetarian = profile.get("is_vegetarian", False)
+    is_vegan = profile.get("is_vegan", False)
+    food_dislikes = [d.lower() for d in profile.get("food_dislikes", [])]
+
+    if is_vegan:
+        base = [c for c in base if "non-veg" not in c.get("taste_tags", [])]
+        for_you = [c for c in for_you if "non-veg" not in c.get("taste_tags", [])]
+    elif is_vegetarian:
+        base = [c for c in base if "non-veg" not in c.get("taste_tags", [])]
+        for_you = [c for c in for_you if "non-veg" not in c.get("taste_tags", [])]
+
+    return {
+        "content": base,
+        "for_you": for_you,
+        "active_conditions": active_conditions,
+        "profile": profile or None,
+    }

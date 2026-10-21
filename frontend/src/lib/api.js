@@ -73,6 +73,29 @@ export function getWellnessContent({ stage, region } = {}) {
   return send("GET", `/wellness/content?${q}`);
 }
 
+export function getDietProfile(womanId) {
+  let token = "";
+  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
+  const q = new URLSearchParams({ token });
+  return send("GET", `/wellness/diet-profile/${encodeURIComponent(womanId)}?${q}`);
+}
+
+export function saveDietProfile(womanId, payload) {
+  let token = "";
+  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
+  const q = new URLSearchParams({ token });
+  return send("PUT", `/wellness/diet-profile/${encodeURIComponent(womanId)}?${q}`, payload);
+}
+
+export function getPersonalizedDietContent({ womanId, stage, region } = {}) {
+  let token = "";
+  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
+  const q = new URLSearchParams({ token });
+  if (stage) q.set("stage", stage);
+  if (region) q.set("region", region);
+  return send("GET", `/wellness/diet-content/${encodeURIComponent(womanId)}?${q}`);
+}
+
 export function getProviders({ type, region, language } = {}) {
   const q = new URLSearchParams();
   if (type) q.set("type", type);
