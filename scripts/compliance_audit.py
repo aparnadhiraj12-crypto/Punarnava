@@ -24,8 +24,7 @@ FORBIDDEN_IMPORTS = {"openai", "anthropic", "transformers", "torch", "sklearn"}
 
 # scheduler.engine and outreach must never import a model client. Ingestion
 # is explicitly allowed to (it's the one service permitted to call a VLM).
-NO_MODEL_ZONES = ["scheduler", "outreach", "record", "diet"]
-
+NO_MODEL_ZONES = ["scheduler", "outreach", "record", "diet", "movement"]
 failures: list[str] = []
 
 # Never audit third-party code (a venv inside backend/ is common on Windows).

@@ -1,0 +1,293 @@
+# PUNARNAVA movement ruleset
+#
+# !!! VERIFY !!!
+# Every rule and citation below is a DRAFT. Nothing here has been checked
+# against the published source. An obstetric physiotherapist and an
+# obstetrician must review each rule before any real mother sees it. The
+# stop-signs in particular must be replaced with verbatim source text.
+#
+# Format rules (checked by tests/test_movement_rules.py):
+#   - layer: gate | safety | stage | condition | today | preference
+#   - order: plain number, lower shows first. Not a score.
+#   - gate (order 0) fires when she says her doctor asked her to rest. The
+#     engine then shows ONLY gate and safety cards, no exercise content.
+#   - No key named priority, severity, score, tier, rank, risk_level, acuity.
+#   - No numbers in advice text (no minutes, reps, heart rates, weeks).
+#   - Danger symptoms are never chips. They go to the danger-signs page.
+#   - when: all keys must match (AND). condition/today lists match if ANY
+#     listed item is present.
+
+version: "0.1.0-draft"
+
+rules:
+  - id: MOVE-GATE-01
+    layer: gate
+    order: 0
+    when:
+      doctor_said_rest: true
+    advice:
+      note: "You told us your doctor has asked you to rest. Please follow that advice and do not start any exercise until your doctor says it is okay."
+    citation: "VERIFY - WHO 2020 physical activity guidance applies to women without contraindications (draft placeholder)"
+
+  - id: MOVE-SAFE-01
+    layer: safety
+    order: 1
+    when:
+      always: true
+    advice:
+      note: "If you notice any of these, stop moving and get help. See Danger Signs for who to contact."
+      stop_signs:
+        - "Dizziness or feeling faint"
+        - "Chest pain or trouble breathing"
+        - "A bad headache"
+        - "Pain, redness or swelling in one calf"
+    citation: "VERIFY - ACOG Committee Opinion 804 / FOGSI exercise warning signs; physiotherapist to replace with verbatim source text (draft placeholder)"
+
+  - id: MOVE-SAFE-02
+    layer: safety
+    order: 2
+    when:
+      always: true
+    advice:
+      note: "This is general guidance, not a treatment plan. Ask your doctor or ANM before you start any exercise, and follow their advice."
+    citation: "VERIFY - scope boundary, docs/compliance.md (draft placeholder)"
+
+  - id: MOVE-SAFE-03
+    layer: safety
+    order: 3
+    when:
+      stage: pregnant
+    advice:
+      stop_signs:
+        - "Bleeding from the vagina"
+        - "Fluid leaking from the vagina"
+        - "Regular painful tightening of the belly"
+        - "Your baby moving much less than usual"
+    citation: "VERIFY - ACOG Committee Opinion 804 / FOGSI exercise warning signs in pregnancy (draft placeholder)"
+
+  - id: MOVE-SAFE-04
+    layer: safety
+    order: 4
+    when:
+      stage: postpartum
+    advice:
+      stop_signs:
+        - "Bleeding that suddenly gets heavier"
+        - "A wound or stitches that open, leak or hurt more"
+        - "A fever or feeling very unwell"
+    citation: "VERIFY - postnatal exercise warning signs, FOGSI / MoHFW (draft placeholder)"
+
+  - id: MOVE-STG-T1-01
+    layer: stage
+    order: 10
+    when:
+      stage: pregnant
+      trimester: 1
+    advice:
+      good_to_try:
+        - "Easy walking at a pace where you can still chat"
+        - "Gentle stretching"
+        - "Slow belly breathing"
+      go_gently:
+        - "Hot or humid weather. Rest somewhere cool and drink water"
+      avoid:
+        - "Activities where you could fall or get hit"
+      tip: "Tiredness and nausea are common early on. Rest when you need to."
+    citation: "VERIFY - WHO 2020 physical activity guidelines, pregnancy (draft placeholder)"
+
+  - id: MOVE-STG-T2-01
+    layer: stage
+    order: 11
+    when:
+      stage: pregnant
+      trimester: 2
+    advice:
+      good_to_try:
+        - "Regular walking"
+        - "Prenatal yoga with a trained instructor"
+        - "Pelvic floor exercises as shown by your doctor, ANM or physiotherapist"
+      go_gently:
+        - "Quick turns and sudden movements as your balance changes"
+      avoid:
+        - "Lying flat on your back for a long time"
+        - "Activities where you could fall or get hit"
+      tip: "Keep water nearby and stop to rest whenever you need to."
+    citation: "VERIFY - WHO 2020 / ACOG Committee Opinion 804, pregnancy (draft placeholder)"
+
+  - id: MOVE-STG-T3-01
+    layer: stage
+    order: 12
+    when:
+      stage: pregnant
+      trimester: 3
+    advice:
+      good_to_try:
+        - "Short, easy walks"
+        - "Gentle stretching"
+        - "Breathing practice for labour"
+      go_gently:
+        - "Moving slowly as your belly grows and your balance changes"
+      avoid:
+        - "Lying flat on your back for a long time"
+        - "Lifting anything heavy"
+      tip: "Rest often and keep a water bottle with you."
+    citation: "VERIFY - ACOG Committee Opinion 804 / FOGSI, late pregnancy (draft placeholder)"
+
+  - id: MOVE-STG-PP-NORMAL-01
+    layer: stage
+    order: 13
+    when:
+      stage: postpartum
+      delivery_mode: normal
+    advice:
+      good_to_try:
+        - "Short, gentle walks when you feel ready"
+        - "Slow belly breathing"
+        - "Pelvic floor exercises as shown by your doctor, ANM or physiotherapist"
+      go_gently:
+        - "Everything at your own pace. Your body is healing"
+      avoid:
+        - "Heavy lifting and hard exercise until your doctor says you are ready"
+      tip: "Ask your doctor at your check-up when you can do more."
+    citation: "VERIFY - WHO 2020 / ACOG postpartum return to activity (draft placeholder)"
+
+  - id: MOVE-STG-PP-CSEC-01
+    layer: stage
+    order: 14
+    when:
+      stage: postpartum
+      delivery_mode: csection
+    advice:
+      good_to_try:
+        - "Short, gentle walks once your doctor says it is okay"
+        - "Slow belly breathing"
+      go_gently:
+        - "Hold a pillow over your stitches when you cough, laugh or get up"
+        - "Getting in and out of bed slowly"
+      avoid:
+        - "Lifting anything heavier than your baby"
+        - "Belly exercises and hard exercise until your doctor says you are ready"
+      tip: "A C-section is major surgery. Healing takes time, so go slowly."
+    citation: "VERIFY - postnatal recovery after caesarean, FOGSI / ACOG (draft placeholder)"
+
+  - id: MOVE-STG-PP-UNSURE-01
+    layer: stage
+    order: 15
+    when:
+      stage: postpartum
+      delivery_mode: not_sure
+    advice:
+      good_to_try:
+        - "Short, gentle walks when you feel ready"
+        - "Slow belly breathing"
+      go_gently:
+        - "Everything at your own pace. Your body is healing"
+      tip: "Ask your doctor or ANM what kind of delivery you had and when you can start more exercise."
+    citation: "VERIFY - WHO 2020 / ACOG postpartum return to activity (draft placeholder)"
+
+  - id: MOVE-COND-HTN-01
+    layer: condition
+    order: 30
+    when:
+      condition: [hypertension]
+    advice:
+      go_gently:
+        - "Keep activity easy and rest if you feel unwell"
+      tip: "Ask your doctor which activities are safe for you. If you get a severe headache, swelling of the face or hands, or blurred vision, see Danger Signs."
+    citation: "VERIFY - ACOG / FOGSI exercise with hypertension in pregnancy (draft placeholder)"
+
+  - id: MOVE-COND-ANAEMIA-01
+    layer: condition
+    order: 31
+    when:
+      condition: [anaemia]
+    advice:
+      go_gently:
+        - "Stand up slowly after sitting or lying down"
+        - "Rest when you feel tired or short of breath"
+      tip: "Keep taking your IFA tablets as advised."
+    citation: "VERIFY - MoHFW anaemia guidance, activity (draft placeholder)"
+
+  - id: MOVE-TODAY-TIRED-01
+    layer: today
+    order: 50
+    when:
+      today: [tired]
+    advice:
+      good_to_try:
+        - "A short rest, then a slow gentle walk if you feel up to it"
+      tip: "On very tired days, resting is the right choice."
+    citation: "VERIFY - WHO 2020, some activity is better than none (draft placeholder)"
+
+  - id: MOVE-TODAY-LOWENERGY-01
+    layer: today
+    order: 51
+    when:
+      today: [low_energy]
+    advice:
+      good_to_try:
+        - "Gentle stretching or slow breathing"
+      tip: "Even a few minutes of easy movement is enough today."
+    citation: "VERIFY - WHO 2020, some activity is better than none (draft placeholder)"
+
+  - id: MOVE-TODAY-BACK-01
+    layer: today
+    order: 52
+    when:
+      today: [back_ache]
+    advice:
+      good_to_try:
+        - "Gentle stretching and changing position often"
+        - "A warm, not hot, shower"
+      go_gently:
+        - "Sitting or standing in one position for a long time"
+      tip: "If the pain is strong, keeps coming back, or worries you, tell your ASHA or doctor."
+    citation: "VERIFY - FOGSI back pain in pregnancy and postpartum (draft placeholder)"
+
+  - id: MOVE-TODAY-SHOULDERS-01
+    layer: today
+    order: 53
+    when:
+      today: [tight_shoulders]
+    advice:
+      good_to_try:
+        - "Slow shoulder rolls and gentle neck stretches"
+        - "Resting your arms on a pillow when you feed your baby"
+      tip: "Change your feeding position now and then to ease the strain."
+    citation: "VERIFY - postnatal musculoskeletal care guidance (draft placeholder)"
+
+  - id: MOVE-TODAY-SLEEP-01
+    layer: today
+    order: 54
+    when:
+      today: [not_sleeping]
+    advice:
+      good_to_try:
+        - "A gentle stretch and slow breathing before bed"
+        - "Resting when your baby rests"
+      avoid:
+        - "Hard exercise close to bedtime"
+      tip: "If you cannot sleep for many nights, tell your ASHA or doctor."
+    citation: "VERIFY - maternal sleep guidance (draft placeholder)"
+
+  - id: MOVE-PREF-ACTIVE-01
+    layer: preference
+    order: 70
+    when:
+      activity_before: active
+    advice:
+      good_to_try:
+        - "Familiar gentle activities you already enjoy, if your doctor says they are okay"
+      tip: "Ask your doctor what you can keep doing."
+    citation: "VERIFY - WHO 2020, previously active women (draft placeholder)"
+
+  - id: MOVE-PREF-NOTACTIVE-01
+    layer: preference
+    order: 71
+    when:
+      activity_before: not_active
+    advice:
+      good_to_try:
+        - "Starting with short, easy walks"
+      tip: "Start slowly and build up gradually. Some movement is better than none."
+    citation: "VERIFY - WHO 2020, some activity is better than none (draft placeholder)"
