@@ -34,6 +34,7 @@ from family.router import _GRANTS
 from report.router import _HANDOFF
 from diet.router import router as diet_router
 from movement.router import router as movement_router
+from mind.router import router as mind_router
 from ingestion.router import _BY_CLIENT_ID
 
 # Every store that must survive a restart. The name is the DB key: don't rename.
@@ -146,6 +147,7 @@ app.include_router(family_router, prefix="/api/family", tags=["family"])
 app.include_router(report_router, prefix="/api/report", tags=["report"])
 app.include_router(diet_router, prefix="/api/diet", tags=["diet"])
 app.include_router(movement_router, prefix="/api/movement", tags=["movement"])
+app.include_router(mind_router, prefix="/api/mind", tags=["mind"])
 
 @app.get("/api/health")
 def health():
