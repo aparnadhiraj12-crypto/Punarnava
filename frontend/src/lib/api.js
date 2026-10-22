@@ -74,26 +74,22 @@ export function getWellnessContent({ stage, region } = {}) {
 }
 
 export function getDietProfile(womanId) {
-  let token = "";
-  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
-  const q = new URLSearchParams({ token });
-  return send("GET", `/wellness/diet-profile/${encodeURIComponent(womanId)}?${q}`);
+  return send("GET", `/wellness/diet-profile/${encodeURIComponent(womanId)}`);
 }
 
 export function saveDietProfile(womanId, payload) {
-  let token = "";
-  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
-  const q = new URLSearchParams({ token });
-  return send("PUT", `/wellness/diet-profile/${encodeURIComponent(womanId)}?${q}`, payload);
+  return send("PUT", `/wellness/diet-profile/${encodeURIComponent(womanId)}`, payload);
 }
 
 export function getPersonalizedDietContent({ womanId, stage, region } = {}) {
-  let token = "";
-  try { token = localStorage.getItem("punarnava_token") || ""; } catch { /* ignore */ }
-  const q = new URLSearchParams({ token });
+  const q = new URLSearchParams();
   if (stage) q.set("stage", stage);
   if (region) q.set("region", region);
-  return send("GET", `/wellness/diet-content/${encodeURIComponent(womanId)}?${q}`);
+  const query = q.toString();
+  return send(
+    "GET",
+    `/wellness/diet-content/${encodeURIComponent(womanId)}${query ? `?${query}` : ""}`,
+  );
 }
 
 export function getProviders({ type, region, language } = {}) {

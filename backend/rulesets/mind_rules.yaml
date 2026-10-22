@@ -1,0 +1,220 @@
+# PUNARNAVA mind ruleset
+#
+# !!! VERIFY !!!
+# Every rule, number and citation below is a DRAFT. A perinatal psychiatrist
+# or clinical psychologist must review each rule before any real mother sees
+# it. The crisis wording (MIND-SAFE-01) must be replaced with the official
+# government text (docs/compliance.md: danger_signs.yaml is still outstanding).
+# The emergency number 112 is unverified.
+#
+# Format rules (checked by tests/test_mind_rules.py):
+#   - layer: safety | stage | today
+#   - order: plain number, lower shows first. Not a score.
+#   - No key named priority, severity, score, tier, rank, risk_level, acuity.
+#   - Digits appear ONLY in contacts[].phone / alt_phone.
+#   - No assessment language (no "depression", "diagnosis", "severe", "risk",
+#     "you seem"). Cards offer fixed support; they never assess her feelings.
+#   - when: all keys must match (AND). feeling lists match if ANY listed item
+#     is present. any_feeling: true matches when she ticked at least one.
+#   - phase is derived from postpartum_early_until_day below.
+
+version: "0.1.0-draft"
+postpartum_early_until_day: 42
+
+rules:
+  - id: MIND-SAFE-01
+    layer: safety
+    order: 1
+    when:
+      always: true
+    advice:
+      note: "If you ever feel you might hurt yourself or your baby, or you feel unsafe, please tell someone near you right now and call for help. You do not have to cope alone."
+      contacts:
+        - name: "Emergency services"
+          phone: "112"
+          detail: "For immediate danger"
+        - name: "Tele-MANAS"
+          phone: "14416"
+          alt_phone: "1800-891-4416"
+          detail: "Free mental health helpline, open day and night, in many Indian languages"
+    citation: "VERIFY - Tele-MANAS (MoHFW); replace with official danger-sign text (draft placeholder)"
+
+  - id: MIND-SAFE-02
+    layer: safety
+    order: 2
+    when:
+      any_feeling: true
+    advice:
+      note: "Talking to someone can help, and you do not have to wait for things to feel worse. You could tell your ASHA or a family member you trust, or call Tele-MANAS."
+      contacts:
+        - name: "Tele-MANAS"
+          phone: "14416"
+          alt_phone: "1800-891-4416"
+          detail: "Free mental health helpline, open day and night, in many Indian languages"
+      tip: "You can also look for a counsellor in the Find support section."
+    citation: "VERIFY - Tele-MANAS (MoHFW) National Tele Mental Health Programme (draft placeholder)"
+
+  - id: MIND-STG-T1-01
+    layer: stage
+    order: 10
+    when:
+      stage: pregnant
+      trimester: 1
+    advice:
+      note: "Mood changes are common in early pregnancy as your body adjusts."
+      try_this:
+        - "Slow, easy breathing when worries feel loud"
+        - "Rest when you can"
+        - "Tell someone you trust how you are feeling"
+      tip: "If low or anxious feelings last or get heavier, tell your ASHA or doctor."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-STG-T2-01
+    layer: stage
+    order: 11
+    when:
+      stage: pregnant
+      trimester: 2
+    advice:
+      note: "Many women feel more settled in the middle of pregnancy, but feelings can still go up and down."
+      try_this:
+        - "A short walk or some fresh air"
+        - "Talking with your partner or a friend about how you feel"
+        - "A few quiet minutes of slow breathing"
+      tip: "If low or anxious feelings last or get heavier, tell your ASHA or doctor."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-STG-T3-01
+    layer: stage
+    order: 12
+    when:
+      stage: pregnant
+      trimester: 3
+    advice:
+      note: "Worries about the birth and the baby are common near the end of pregnancy."
+      try_this:
+        - "Write down your questions to ask your doctor or ANM"
+        - "Breathing practice you can use during labour"
+        - "Tell your partner or family what would help you feel calm"
+      tip: "If low or anxious feelings last or get heavier, tell your ASHA or doctor."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-STG-PP-EARLY-01
+    layer: stage
+    order: 13
+    when:
+      stage: postpartum
+      phase: early
+    advice:
+      note: "Many mothers feel tearful, tired or on edge in the first weeks after birth."
+      try_this:
+        - "Rest when your baby rests"
+        - "Accept help with cooking and housework"
+        - "Tell someone how you are really feeling"
+      tip: "If low or anxious feelings last or get heavier, tell your ASHA or doctor."
+    citation: "VERIFY - WHO / MoHFW postnatal mental health guidance (draft placeholder)"
+
+  - id: MIND-STG-PP-LATER-01
+    layer: stage
+    order: 14
+    when:
+      stage: postpartum
+      phase: later
+    advice:
+      note: "Feelings can change at any time after birth, and support is always there."
+      try_this:
+        - "Keep small routines that help you feel like yourself"
+        - "Make time for a short break each day, even a few quiet minutes"
+        - "Stay in touch with people you trust"
+      tip: "If low or anxious feelings last or get heavier, tell your ASHA or doctor."
+    citation: "VERIFY - WHO / MoHFW postnatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-ANXIOUS-01
+    layer: today
+    order: 50
+    when:
+      feeling: [anxious]
+    advice:
+      try_this:
+        - "Breathe in slowly through your nose, then breathe out for a little longer"
+        - "Look around and name a few things you can see and hear"
+        - "Put your feet flat on the floor and feel the ground"
+      tip: "Worry often rises at night. Writing it down can help it feel smaller."
+    citation: "VERIFY - grounding and breathing techniques, WHO Self-Help Plus / perinatal guidance (draft placeholder)"
+
+  - id: MIND-TODAY-SAD-01
+    layer: today
+    order: 51
+    when:
+      feeling: [sad]
+    advice:
+      try_this:
+        - "Do one small kind thing for yourself, like a warm drink or some fresh air"
+        - "Sit or talk with someone you trust"
+      tip: "You do not have to explain it perfectly. Saying 'I am having a hard day' to someone is a start."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-OVERWHELMED-01
+    layer: today
+    order: 52
+    when:
+      feeling: [overwhelmed]
+    advice:
+      try_this:
+        - "Pick just one thing for today and leave the rest"
+        - "Ask someone at home to take one task off you"
+        - "Say no to visitors if you need some quiet"
+      tip: "You are allowed to ask for help."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-BURNEDOUT-01
+    layer: today
+    order: 53
+    when:
+      feeling: [burned_out]
+    advice:
+      try_this:
+        - "Rest whenever your baby rests, if you have a baby"
+        - "Share chores and night duties with family"
+        - "Eat and drink something even when you are busy"
+      tip: "Needing rest and support does not mean you are failing."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-LONELY-01
+    layer: today
+    order: 54
+    when:
+      feeling: [lonely]
+    advice:
+      try_this:
+        - "Call or message someone you trust, even for a short while"
+        - "Ask your ASHA about mothers' groups nearby"
+        - "Step outside for fresh air when you can"
+      tip: "Many mothers feel lonely at times. You are not the only one."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-IRRITABLE-01
+    layer: today
+    order: 55
+    when:
+      feeling: [irritable, frustrated]
+    advice:
+      try_this:
+        - "Pause and take a few slow breaths before you reply"
+        - "Step into another room for a moment if you can"
+        - "Drink some water and sit down"
+      tip: "Feeling frustrated is common when you are tired and stretched. Be gentle with yourself."
+    citation: "VERIFY - WHO perinatal mental health guidance (draft placeholder)"
+
+  - id: MIND-TODAY-SLEEP-01
+    layer: today
+    order: 56
+    when:
+      feeling: [not_sleeping]
+    advice:
+      try_this:
+        - "Rest when your baby rests, if you have a baby"
+        - "Dim the lights and slow your breathing before bed"
+        - "Ask someone to take one night feed or help with one chore"
+      tip: "If you cannot sleep for many nights, tell your ASHA or doctor."
+    citation: "VERIFY - maternal sleep guidance (draft placeholder)"

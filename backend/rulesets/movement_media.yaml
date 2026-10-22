@@ -1,0 +1,25 @@
+# PUNARNAVA movement media library (videos and articles)
+#
+# No links are invented here. Each item is added by the physiotherapist after
+# she has watched or read it, with her name and the date. The tests refuse
+# an item without a reviewer, a date and an https link.
+#
+# Example of one item (copy, fill in, and remove the leading #):
+#
+#   - id: MOVE-MEDIA-T2-01
+#     kind: video              # video | article
+#     title: "..."
+#     publisher: "..."         # WHO, MoHFW, FOGSI, a government medical college ...
+#     url: "https://..."
+#     language: en             # en | hi | te | ta | kn | ml | mr | bn | gu | pa | or
+#     length: short            # short | medium
+#     stage: pregnant_t2       # pregnant_t1 | pregnant_t2 | pregnant_t3 | postpartum
+#     delivery_mode: any       # any | normal | csection
+#     topic: pelvic_floor      # walking | stretching | yoga | breathing | pelvic_floor | posture | rest
+#     reviewed_by: "..."
+#     reviewed_on: "..."
+#     citation: "VERIFY - ..."
+
+version: "0.1.0-draft"
+
+items: []
