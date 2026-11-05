@@ -594,10 +594,11 @@ class DailyCheckIn(BaseModel):
     All fields are free‑text choices coming from the UI – never clinical inference.
     """
     woman_id: str
-    date: datetime = datetime.now(timezone.utc)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     nausea: str = "none"          # "none" | "mild" | "severe"
     appetite: str = "normal"      # "low" | "normal" | "high"
     food_tolerance: str = "good"  # "good" | "poor"
+
 
 class FoodFeedback(BaseModel):
     """Mother marks a food as unsuitable and optionally receives an alternative.
@@ -617,47 +618,20 @@ class BudgetProfile(BaseModel):
     budget: str = "medium"        # "low" | "medium" | "high"
     available_ingredients: list[str] = []
 
-# Import SQLite persistence helpers – support both package and top‑level imports
-try:
-    # When wellness is a subpackage of a larger package (e.g., backend.wellness)
-    from ..persistence_sqlite import (
-        init_db,
-        insert_daily_checkin,
-        get_daily_checkins,
-        upsert_allergy_profile,
-        get_allergy_profile as db_get_allergy_profile,
-        upsert_budget_profile,
-        get_budget_profile as db_get_budget_profile,
-        insert_food_feedback,
-        get_food_feedback as db_get_food_feedback,
-    )
-except ImportError:
-    try:
-        # When the repository root is on the PYTHONPATH and we import as a top‑level package
-        from backend.persistence_sqlite import (
-            init_db,
-            insert_daily_checkin,
-            get_daily_checkins,
-            upsert_allergy_profile,
-            get_allergy_profile as db_get_allergy_profile,
-            upsert_budget_profile,
-            get_budget_profile as db_get_budget_profile,
-            insert_food_feedback,
-            get_food_feedback as db_get_food_feedback,
-        )
-    except ImportError:
-        # Fallback to a relative import from the current directory (works when executed directly)
-        from persistence_sqlite import (
-            init_db,
-            insert_daily_checkin,
-            get_daily_checkins,
-            upsert_allergy_profile,
-            get_allergy_profile as db_get_allergy_profile,
-            upsert_budget_profile,
-            get_budget_profile as db_get_budget_profile,
-            insert_food_feedback,
-            get_food_feedback as db_get_food_feedback,
-        )
+# Import SQLite persistence helpers – use top‑level import for uvicorn setup
+from persistence_sqlite import (
+    init_db,
+    insert_daily_checkin,
+    get_daily_checkins,
+    upsert_allergy_profile,
+    get_allergy_profile as db_get_allergy_profile,
+    upsert_budget_profile,
+    get_budget_profile as db_get_budget_profile,
+    insert_food_feedback,
+    get_food_feedback as db_get_food_feedback,
+    upsert_diet_profile,
+    get_diet_profile as db_get_diet_profile,
+)
 
 # Initialize DB at import time (optional, also called on startup)
 init_db()
