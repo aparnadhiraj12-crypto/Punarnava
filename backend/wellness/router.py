@@ -617,18 +617,31 @@ class BudgetProfile(BaseModel):
     budget: str = "medium"        # "low" | "medium" | "high"
     available_ingredients: list[str] = []
 
-# Import SQLite persistence helpers
-from ..persistence_sqlite import (
-    init_db,
-    insert_daily_checkin,
-    get_daily_checkins,
-    upsert_allergy_profile,
-    get_allergy_profile as db_get_allergy_profile,
-    upsert_budget_profile,
-    get_budget_profile as db_get_budget_profile,
-    insert_food_feedback,
-    get_food_feedback as db_get_food_feedback,
-)
+# Import SQLite persistence helpers – support both package and top‑level imports
+try:
+    from ..persistence_sqlite import (
+        init_db,
+        insert_daily_checkin,
+        get_daily_checkins,
+        upsert_allergy_profile,
+        get_allergy_profile as db_get_allergy_profile,
+        upsert_budget_profile,
+        get_budget_profile as db_get_budget_profile,
+        insert_food_feedback,
+        get_food_feedback as db_get_food_feedback,
+    )
+except ImportError:  # fallback when wellness is imported as a top‑level module
+    from persistence_sqlite import (
+        init_db,
+        insert_daily_checkin,
+        get_daily_checkins,
+        upsert_allergy_profile,
+        get_allergy_profile as db_get_allergy_profile,
+        upsert_budget_profile,
+        get_budget_profile as db_get_budget_profile,
+        insert_food_feedback,
+        get_food_feedback as db_get_food_feedback,
+    )
 
 # Initialize DB at import time (optional, also called on startup)
 init_db()
