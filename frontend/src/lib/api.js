@@ -137,3 +137,33 @@ export function getBpReadings(womanId) {
 export function getMotherReport(womanId) {
   return send("GET", `/report/${womanId}`);
 }
+
+// ----- new API helpers for daily check‑in, allergies, budget, feedback & suggestions -----
+export const postDailyCheckIn = (womanId, payload) =>
+  send("POST", `/wellness/daily-checkin/${encodeURIComponent(womanId)}`, payload);
+export const getDailyCheckIns = (womanId) =>
+  send("GET", `/wellness/daily-checkin/${encodeURIComponent(womanId)}`);
+
+export const putAllergyProfile = (womanId, payload) =>
+  send("PUT", `/wellness/allergy-profile/${encodeURIComponent(womanId)}`, payload);
+export const getAllergyProfile = (womanId) =>
+  send("GET", `/wellness/allergy-profile/${encodeURIComponent(womanId)}`);
+
+export const putBudgetProfile = (womanId, payload) =>
+  send("PUT", `/wellness/budget-profile/${encodeURIComponent(womanId)}`, payload);
+export const getBudgetProfile = (womanId) =>
+  send("GET", `/wellness/budget-profile/${encodeURIComponent(womanId)}`);
+
+export const postFoodFeedback = (womanId, payload) =>
+  send("POST", `/wellness/food-feedback/${encodeURIComponent(womanId)}`, payload);
+
+export const getFoodSuggestions = (womanId, { stage, region } = {}) => {
+  const q = new URLSearchParams();
+  if (stage) q.set("stage", stage);
+  if (region) q.set("region", region);
+  const query = q.toString();
+  return send(
+    "GET",
+    `/wellness/food-suggestions/${encodeURIComponent(womanId)}${query ? `?${query}` : ""}`
+  );
+};
