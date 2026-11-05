@@ -86,6 +86,10 @@ def build_food_options():
                 "meal_types": list(recipe["meal_types"]),
                 "affordability": recipe["affordability"],
                 "condition_tags": [],
+                "limit_notes": (
+                    "Illustrative meal idea, not an individual medical diet. "
+                    "Follow any dietary restrictions given by your clinician."
+                ),
                 "nutrients": None,
                 "avoid_notes": (
                     "Check ingredient labels and preparation for allergens. "
