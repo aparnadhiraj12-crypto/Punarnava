@@ -61,6 +61,15 @@ def init_db():
         )
         """
     )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS diet_profiles (
+            woman_id TEXT PRIMARY KEY,
+            profile_json TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -157,3 +166,39 @@ def get_food_feedback(woman_id: str) -> List[Dict[str, Any]]:
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def upsert_diet_profile(woman_id: str, profile: dict):
+    """Persist a mother's self-reported diet profile."""
+    import json
+    payload = dict(profile)
+    payload["woman_id"] = woman_id
+    encoded = json.dumps(payload)
+    conn = _connect()
+    try:
+        with conn:
+            conn.execute(
+                """
+                INSERT INTO diet_profiles (woman_id, profile_json)
+                VALUES (?, ?)
+                ON CONFLICT(woman_id)
+                DO UPDATE SET profile_json = excluded.profile_json
+                """,
+                (woman_id, encoded),
+            )
+    finally:
+        conn.close()
+
+
+def get_diet_profile(woman_id: str):
+    """Return the saved profile, or None if none exists."""
+    import json
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT profile_json FROM diet_profiles WHERE woman_id = ?",
+            (woman_id,),
+        ).fetchone()
+        return json.loads(row["profile_json"]) if row else None
+    finally:
+        conn.close()

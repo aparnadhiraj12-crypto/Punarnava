@@ -1,72 +1,49 @@
-import { useEffect, useMemo, useState } from "react";
+import DailyDietCheckIn from "./DailyDietCheckIn";
+
+import { useEffect, useState } from "react";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
-import Badge from "../../components/Badge";
-import { Loading, Unreachable, EmptyState } from "../../components/Page";
-import { getWellnessContent, getPersonalizedDietContent, getDietProfile, saveDietProfile } from "../../lib/api";
 import { getSession } from "../../lib/session";
+import {
+  getDietProfile,
+  saveDietProfile,
+  getAllergyProfile,
+  putAllergyProfile,
+  getBudgetProfile,
+  putBudgetProfile,
+  getFoodSuggestions,
+  postFoodFeedback,
+} from "../../lib/api";
 
 const STAGES = [
   ["pregnancy_t1", "Trimester 1"],
   ["pregnancy_t2", "Trimester 2"],
   ["pregnancy_t3", "Trimester 3"],
-  ["postpartum_early", "Early postpartum"],
+  ["postpartum_early", "First 6 weeks postpartum"],
+  ["postpartum_six_week", "6 weeks to 6 months"],
+  ["postpartum_long", "After 6 months"],
 ];
 
-const CONDITION_BADGE_MAP = {
-  gdm: { label: "GDM-Safe", color: "#4CAF50" },
-  nausea: { label: "Nausea-Friendly", color: "#FF9800" },
-  low_weight: { label: "High-Calorie", color: "#2196F3" },
-  sickness: { label: "Easy on Stomach", color: "#9C27B0" },
+const FEEDBACK = [
+  ["nauseous", "Makes me nauseous"],
+  ["expensive", "Too expensive"],
+  ["unavailable", "Unavailable"],
+  ["disliked", "Don't like it"],
+  ["worked", "Worked for me"],
+];
+
+const inputStyle = {
+  display: "block",
+  width: "100%",
+  padding: "10px",
+  marginTop: "6px",
+  boxSizing: "border-box",
 };
 
-function ConditionBadge({ tag }) {
-  const info = CONDITION_BADGE_MAP[tag];
-  if (!info) return null;
-  return (
-    <span style={{
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: 12,
-      fontSize: 11,
-      fontWeight: 700,
-      background: info.color + "22",
-      color: info.color,
-      border: `1px solid ${info.color}44`,
-      marginRight: 4,
-      marginBottom: 4,
-    }}>
-      {info.label}
-    </span>
-  );
-}
-
-function DietCard({ item }) {
-  return (
-    <li className="paper-card" style={{ marginBottom: 12 }}>
-      <div className="card-title">{item.title}</div>
-      {(item.condition_tags || []).map((tag) => (
-        <ConditionBadge key={tag} tag={tag} />
-      ))}
-      <p style={{ marginTop: 8 }}>{item.body}</p>
-      {item.avoid_notes && (
-        <p style={{ marginTop: 6, fontSize: 13, color: "#c0392b", borderLeft: "3px solid #c0392b", paddingLeft: 8 }}>
-          ⚠ {item.avoid_notes}
-        </p>
-      )}
-      {item.nutrients && Object.values(item.nutrients).some(Boolean) && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8, fontSize: 12, color: "#666" }}>
-          {item.nutrients.calories && <span>🔥 {item.nutrients.calories} kcal</span>}
-          {item.nutrients.protein_g && <span>💪 {item.nutrients.protein_g}g protein</span>}
-          {item.nutrients.iron_mg && <span>🩸 {item.nutrients.iron_mg}mg iron</span>}
-          {item.nutrients.calcium_mg && <span>🦴 {item.nutrients.calcium_mg}mg calcium</span>}
-        </div>
-      )}
-      {item.source_citation && (
-        <span className="citation">{item.source_citation}</span>
-      )}
-    </li>
-  );
+function splitList(value) {
+  return [...new Set(
+    value.split(",").map((item) => item.trim()).filter(Boolean)
+  )];
 }
 
 function ProfileForm({ profile, onSave, onCancel }) {
@@ -101,7 +78,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
       <div className="card-title" style={{ marginBottom: 12 }}>Your diet profile</div>
       <p style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
         Tell us about yourself so we can show you the most relevant guidance.
-        This stays on your device and is never shared with anyone.
+        Your profile is saved to your account on the server.
       </p>
 
       <label style={{ display: "block", marginBottom: 12 }}>
@@ -188,178 +165,466 @@ function ProfileForm({ profile, onSave, onCancel }) {
   );
 }
 
+
+
 export default function Diet() {
   const { linkedId } = getSession();
   const [stage, setStage] = useState("pregnancy_t1");
-  const [data, setData] = useState(null);
-  const [failed, setFailed] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [profile, setProfile] = useState(null);
-  const [profileLoaded, setProfileLoaded] = useState(false);
-  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [allergens, setAllergens] = useState("");
+  const [budget, setBudget] = useState("medium");
+  const [ingredients, setIngredients] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [swapFor, setSwapFor] = useState(null);
 
-  // Load diet profile on mount
   useEffect(() => {
+    let active = true;
+    setSwapFor(null);
+    setLoading(true);
+    setError("");
+    setResult(null);
+
     if (!linkedId) {
-      setProfileLoaded(true);
-      return;
+      setLoading(false);
+      return () => { active = false; };
     }
-    getDietProfile(linkedId)
-      .then((res) => {
-        setProfile(res.profile);
-        setProfileLoaded(true);
-      })
-      .catch(() => setProfileLoaded(true));
-  }, [linkedId]);
 
-  // Load diet content when stage or profile changes
-  useEffect(() => {
-    if (!profileLoaded) return;
-    setData(null);
-    setFailed(false);
-    if (linkedId) {
-      getPersonalizedDietContent({ womanId: linkedId, stage })
-        .then(setData)
-        .catch(() => {
-          // Fall back to non-personalized
-          getWellnessContent({ stage })
-            .then((res) => setData({ content: res.content, for_you: [], active_conditions: [], profile: null }))
-            .catch(() => setFailed(true));
-        });
-    } else {
-      getWellnessContent({ stage })
-        .then((res) => setData({ content: res.content, for_you: [], active_conditions: [], profile: null }))
-        .catch(() => setFailed(true));
+    async function load() {
+      try {
+        const [profileData, allergyData, budgetData, foodData] =
+          await Promise.all([
+            getDietProfile(linkedId),
+            getAllergyProfile(linkedId),
+            getBudgetProfile(linkedId),
+            getFoodSuggestions(linkedId, { stage }),
+          ]);
+
+        if (!active) return;
+        setProfile(profileData.profile);
+        setAllergens((allergyData.allergens || []).join(", "));
+        setBudget(budgetData.budget || "medium");
+        setIngredients(
+          (budgetData.available_ingredients || []).join(", ")
+        );
+        setDirty(false);
+        setResult(foodData);
+      } catch (err) {
+        if (active) setError(err.message || "Could not load your diet data.");
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-  }, [stage, profileLoaded, linkedId]);
 
-  async function handleSaveProfile(formData) {
-    await saveDietProfile(linkedId, { woman_id: linkedId, ...formData });
-    const res = await getDietProfile(linkedId);
-    setProfile(res.profile);
-    setShowProfileForm(false);
-    // Reload content with new profile
-    setData(null);
-    getPersonalizedDietContent({ womanId: linkedId, stage })
-      .then(setData)
-      .catch(() => setFailed(true));
+    load();
+    return () => { active = false; };
+  }, [linkedId, stage, revision]);
+
+  async function runAction(action, message) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    setResult(null);
+
+    try {
+      await action();
+      setNotice(message);
+      setRevision((value) => value + 1);
+    } catch (err) {
+      setError(
+        (err.message || "Could not save.") +
+        " Reload saved data before continuing."
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
-  const dietItems = useMemo(() => {
-    const items = data?.content ?? [];
-    return items.filter((item) => item.type === "diet");
-  }, [data]);
+  async function handleSaveProfile(formData) {
+    await runAction(async () => {
+      await saveDietProfile(linkedId, {
+        ...formData,
+        woman_id: linkedId,
+      });
+      setShowProfile(false);
+    }, "Diet profile saved.");
+  }
 
-  const forYouItems = useMemo(() => {
-    return (data?.for_you ?? []).filter((item) => item.type === "diet");
-  }, [data]);
+  async function savePreferences(event) {
+    event.preventDefault();
+    await runAction(async () => {
+      await putAllergyProfile(linkedId, {
+        woman_id: linkedId,
+        allergens: splitList(allergens),
+      });
+      await putBudgetProfile(linkedId, {
+        woman_id: linkedId,
+        budget,
+        available_ingredients: splitList(ingredients),
+      });
+    }, "Preferences saved. Suggestions refreshed.");
+  }
 
-  const activeConditions = data?.active_conditions ?? [];
+  async function recordFeedback(foodId, issue) {
+    await runAction(
+      () => postFoodFeedback(linkedId, {
+        woman_id: linkedId,
+        food_id: foodId,
+        issue,
+        date: new Date().toISOString(),
+      }),
+      issue === "worked"
+        ? "Saved: this food worked for you."
+        : "Feedback saved. Remaining suggestions refreshed."
+    );
+  }
 
-  const hasProfile = Boolean(
-    profile?.weight_kg ||
-    profile?.has_gdm ||
-    (profile?.nausea_level && profile.nausea_level !== "none") ||
-    (profile?.current_sickness && profile.current_sickness !== "none")
-  );
+
+  function alternativesFor(food, suggestions = result?.suggestions || []) {
+    return suggestions.filter((candidate) =>
+      candidate.id !== food.id &&
+      candidate.stage === food.stage &&
+      (candidate.meal_types || []).some((meal) =>
+        (food.meal_types || []).includes(meal)
+      )
+    );
+  }
+
+  async function swapFood(originalFood, replacementFood) {
+    await runAction(async () => {
+      // Recheck current server-filtered options before saving.
+      const fresh = await getFoodSuggestions(linkedId, { stage });
+      const current = (fresh.suggestions || []).find(
+        (food) => food.id === originalFood.id
+      );
+
+      if (!current) {
+        throw new Error("The original food is no longer available.");
+      }
+
+      const replacement = alternativesFor(
+        current,
+        fresh.suggestions || []
+      ).find((food) => food.id === replacementFood.id);
+
+      if (!replacement) {
+        throw new Error("That alternative no longer matches your preferences.");
+      }
+
+      await postFoodFeedback(linkedId, {
+        woman_id: linkedId,
+        food_id: current.id,
+        issue: "swapped",
+        alternative_id: replacement.id,
+        date: new Date().toISOString(),
+      });
+
+      setSwapFor(null);
+    }, `Swap saved: ${replacementFood.title} replaces ${originalFood.title}.`);
+  }
+
+  const disabled = loading || busy;
 
   return (
     <AppShell role="mother">
       <PageTitle
         eyebrow="Nutrition"
-        title="Food for your stage."
-        copy="Guidance from the wellness library, filtered to what matters for you."
+        title="Food that fits your preferences."
+        copy="Explore meal ideas using your food preferences, budget, and available ingredients."
       />
 
-      {/* Personalize card */}
-      {!showProfileForm && (
-        <div style={{
-          background: hasProfile ? "#f0f7ff" : "#fff8e1",
-          border: `1px solid ${hasProfile ? "#bbdefb" : "#ffe082"}`,
-          borderRadius: 12,
-          padding: "12px 16px",
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-        }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>
-              {hasProfile ? "✅ Your diet profile is set" : "✨ Personalise your diet plan"}
-            </div>
-            <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
-              {hasProfile
-                ? `Showing: ${activeConditions.map((c) => CONDITION_BADGE_MAP[c]?.label || c).join(", ") || "general guidance"}`
-                : "Tell us about your weight, nausea, and preferences to see a tailored plan."}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="button button-secondary"
-            style={{ flexShrink: 0, fontSize: 13 }}
-            onClick={() => setShowProfileForm(true)}
-          >
-            {hasProfile ? "Edit" : "Set up"}
-          </button>
-        </div>
-      )}
+      {!linkedId ? (
+        <p>Complete your mother enrolment to use diet preferences.</p>
+      ) : (
+        <>
+          <label style={{ display: "block", marginBottom: 16 }}>
+            Choose the stage to view
+            <select
+              style={inputStyle}
+              value={stage}
+              disabled={disabled || dirty || showProfile}
+              onChange={(event) => {
+                setNotice("");
+                setStage(event.target.value);
+              }}
+            >
+              {STAGES.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
 
-      {showProfileForm && (
-        <ProfileForm
-          profile={profile}
-          onSave={handleSaveProfile}
-          onCancel={() => setShowProfileForm(false)}
-        />
-      )}
+          {notice && <p role="status">{notice}</p>}
 
-      {/* Stage tabs */}
-      <div className="filter-row">
-        {STAGES.map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`button ${stage === value ? "button-primary" : "button-secondary"}`}
-            onClick={() => setStage(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {failed && <Unreachable onRetry={() => setStage(stage)} />}
-      {!failed && !data && <Loading />}
-
-      {/* For You section */}
-      {data && forYouItems.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "#1565c0" }}>
-            ✨ For you
-          </div>
-          <ul className="entry-list" style={{ marginBottom: 16 }}>
-            {forYouItems.map((item) => <DietCard key={item.id} item={item} />)}
-          </ul>
-        </div>
-      )}
-
-      {/* General content */}
-      {data && (
-        <div>
-          {forYouItems.length > 0 && (
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: "#333" }}>
-              General guidance
+          {error && (
+            <div role="alert" className="paper-card">
+              <p>{error}</p>
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={disabled}
+                onClick={() => setRevision((value) => value + 1)}
+              >
+                Reload saved data
+              </button>
             </div>
           )}
-          {dietItems.length === 0 ? (
-            <EmptyState
-              title="Nothing here yet."
-              note="This category does not have approved content for this stage yet."
-            />
-          ) : (
-            <ul className="entry-list">
-              {dietItems.map((item) => <DietCard key={item.id} item={item} />)}
-            </ul>
+
+          {loading && <p role="status">Loading your preferences...</p>}
+
+          {!loading && !error && (
+            <>
+              {showProfile ? (
+                <ProfileForm
+                  profile={profile}
+                  onSave={handleSaveProfile}
+                  onCancel={() => setShowProfile(false)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={busy || dirty}
+                  onClick={() => setShowProfile(true)}
+                >
+                  {profile ? "Edit diet profile" : "Set up diet profile"}
+                </button>
+              )}
+
+              <DailyDietCheckIn
+                key={linkedId}
+                womanId={linkedId}
+                disabled={disabled || showProfile || dirty}
+              />
+
+              <form
+                className="paper-card"
+                style={{ marginTop: 16, marginBottom: 16 }}
+                onSubmit={savePreferences}
+              >
+                <h2>Allergies, budget and ingredients</h2>
+
+                <fieldset
+                  disabled={disabled || showProfile}
+                  style={{ border: 0, padding: 0, margin: 0 }}
+                >
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Allergies, separated by commas
+                    <input
+                      style={inputStyle}
+                      value={allergens}
+                      placeholder="Example: milk, peanut"
+                      onChange={(event) => {
+                        setAllergens(event.target.value);
+                        setDirty(true);
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Budget category
+                    <select
+                      style={inputStyle}
+                      value={budget}
+                      onChange={(event) => {
+                        setBudget(event.target.value);
+                        setDirty(true);
+                      }}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">Flexible</option>
+                    </select>
+                  </label>
+
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Ingredients at home, separated by commas
+                    <input
+                      style={inputStyle}
+                      value={ingredients}
+                      placeholder="Example: rice, carrot"
+                      onChange={(event) => {
+                        setIngredients(event.target.value);
+                        setDirty(true);
+                      }}
+                    />
+                  </label>
+
+                  <p>
+                    Ingredient matching finds recipes containing at least one
+                    listed ingredient. You may need additional ingredients.
+                  </p>
+
+                  <button
+                    type="submit"
+                    className="button button-primary"
+                  >
+                    {busy ? "Saving..." : "Save preferences"}
+                  </button>
+
+                  {dirty && (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => setRevision((value) => value + 1)}
+                    >
+                      Discard unsaved changes
+                    </button>
+                  )}
+                </fieldset>
+              </form>
+
+              {dirty && (
+                <p role="status">
+                  Save your changes to see updated suggestions.
+                </p>
+              )}
+
+              {!dirty && !showProfile && result && (
+                <section aria-label="Food suggestions">
+                  <h2>Food suggestions</h2>
+                  <p>
+                    These are food ideas, not a prescribed diet.
+                    Current matching uses food preferences, affordability,
+                    ingredients, allergies and feedback. It does not yet
+                    personalize meals for GDM, weight or daily symptoms.
+                  </p>
+
+                  {result.excluded_for_incomplete_allergen_data > 0 && (
+                    <p role="status">
+                      Some options were excluded because their allergen
+                      information is incomplete.
+                    </p>
+                  )}
+
+                  {(result.suggestions || []).length === 0 ? (
+                    <p>{result.message || "No matching options available."}</p>
+                  ) : (
+                    <ul
+                      style={{ listStyle: "none", padding: 0 }}
+                      className="entry-list"
+                    >
+                      {result.suggestions.map((item) => (
+                        <li
+                          key={item.id}
+                          className="paper-card"
+                          style={{ marginBottom: 16 }}
+                        >
+                          <h3>{item.title}</h3>
+                          {item.is_demo && <p>Illustrative meal option</p>}
+                          <p>{item.body}</p>
+
+                          {item.meal_types?.length > 0 && (
+                            <p>Meal: {item.meal_types.join(", ")}</p>
+                          )}
+
+                          <p>
+                            <strong>Why this is shown: </strong>
+                            {item.match_explanation}
+                          </p>
+
+                          {(item.filter_notes || []).map((note) => (
+                            <p key={note}>{note}</p>
+                          ))}
+
+                          {item.avoid_notes && <p>{item.avoid_notes}</p>}
+
+                          {item.source_citation && (
+                            <p className="citation">{item.source_citation}</p>
+                          )}
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            {item.meal_types?.length > 0 && (
+                              <button
+                                type="button"
+                                className="button button-secondary"
+                                disabled={busy}
+                                aria-expanded={swapFor === item.id}
+                                aria-label={`Show alternatives for ${item.title}`}
+                                onClick={() => setSwapFor(
+                                  swapFor === item.id ? null : item.id
+                                )}
+                              >
+                                {swapFor === item.id ? "Close alternatives" : "Swap"}
+                              </button>
+                            )}
+
+                            {swapFor === item.id && (
+                              <div
+                                role="group"
+                                aria-label={`Alternatives for ${item.title}`}
+                                style={{ flexBasis: "100%", padding: "12px 0" }}
+                              >
+                                <strong>Choose an alternative</strong>
+                                <p>
+                                  These options share a meal category and match
+                                  your current filters. They are not necessarily
+                                  nutritionally equivalent.
+                                </p>
+
+                                {alternativesFor(item).length === 0 ? (
+                                  <p role="status">
+                                    No matching alternative available.
+                                  </p>
+                                ) : (
+                                  alternativesFor(item).map((alternative) => (
+                                    <div
+                                      key={alternative.id}
+                                      style={{ marginBottom: 12 }}
+                                    >
+                                      <p>
+                                        <strong>{alternative.title}</strong>
+                                        <br />
+                                        {alternative.match_explanation}
+                                      </p>
+                                      <button
+                                        type="button"
+                                        className="button button-primary"
+                                        disabled={busy}
+                                        onClick={() => swapFood(item, alternative)}
+                                      >
+                                        Choose {alternative.title}
+                                      </button>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+
+                            {FEEDBACK.map(([issue, label]) => (
+                              <button
+                                key={issue}
+                                type="button"
+                                className="button button-secondary"
+                                disabled={busy}
+                                aria-label={`${label}: ${item.title}`}
+                                onClick={() => recordFeedback(item.id, issue)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+            </>
           )}
-        </div>
+        </>
       )}
     </AppShell>
   );

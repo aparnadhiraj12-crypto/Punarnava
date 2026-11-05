@@ -8,11 +8,38 @@ import { getSession, clearSession } from "../lib/session";
 import OfflineStatus from "./OfflineStatus";
 
 const motherNav = (linkedId) => [
-  { to: linkedId ? `/m/${linkedId}` : "/m", label: "Journey", icon: "journey", match: (p) => p === "/m" || (p.startsWith("/m/") && !["/m/wellness", "/m/journal", "/m/help", "/m/enrol"].some((x) => p.startsWith(x))) },
-  { to: "/m/wellness", label: "Wellness", icon: "heart", match: (p) => p.startsWith("/m/wellness") },
-  { to: "/m/journal", label: "Journal", icon: "journal", match: (p) => p.startsWith("/m/journal") },
-  { to: "/m/help", label: "Safety", icon: "shield", match: (p) => p.startsWith("/m/help") },
+  {
+    to: linkedId ? `/m/${linkedId}` : "/m",
+    label: "Journey",
+    icon: "journey",
+    match: (p) => p === "/m" || Boolean(linkedId && p === `/m/${linkedId}`),
+  },
+  {
+    to: "/m/diet",
+    label: "Diet",
+    icon: "heart",
+    match: (p) => p === "/m/diet" || p.startsWith("/m/diet/"),
+  },
+  {
+    to: "/m/wellness",
+    label: "Wellness",
+    icon: "heart",
+    match: (p) => p.startsWith("/m/wellness"),
+  },
+  {
+    to: "/m/journal",
+    label: "Journal",
+    icon: "journal",
+    match: (p) => p.startsWith("/m/journal"),
+  },
+  {
+    to: "/m/help",
+    label: "Safety",
+    icon: "shield",
+    match: (p) => p.startsWith("/m/help"),
+  },
 ];
+
 const ashaNav = [
   { to: "/a", label: "Queue", icon: "people", match: (p) => p === "/a" },
   { to: "/m/enrol", label: "Mothers", icon: "plus", match: (p) => p.startsWith("/m/enrol") },

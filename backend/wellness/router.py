@@ -38,6 +38,7 @@ map. Good enough to demo, not to ship.
 """
 from fastapi import APIRouter
 from pydantic import BaseModel
+from pydantic import Field
 from typing import Optional
 from datetime import datetime, timezone
 import uuid
@@ -308,7 +309,7 @@ _CONTENT: list[dict] = [
     ).model_dump(),
     WellnessContent(
         id=str(uuid.uuid4()), type="diet", stage="pregnancy_t2", region="general",
-        title="GDM-safe second trimester meals",
+        title='Second trimester food guidance for GDM',
         body="Small, frequent meals (every 2-3 hours) are better than two or three large ones "
              "when managing gestational diabetes. Include a palm-sized protein at each meal. "
              "Choose whole grains -- red rice, ragi, jowar -- over refined ones.",
@@ -320,14 +321,14 @@ _CONTENT: list[dict] = [
     ).model_dump(),
     WellnessContent(
         id=str(uuid.uuid4()), type="diet", stage="pregnancy_t3", region="general",
-        title="GDM-safe third trimester meals",
+        title='Third trimester food guidance for GDM',
         body="As baby grows, blood sugar can become harder to control. Stick to three small "
              "meals and three snacks. Good snack ideas: a small handful of nuts, a boiled egg, "
              "or curd with a little flaxseed. Walk for 10-15 minutes after your main meals.",
         avoid_notes="Mangoes, grapes, bananas, and chikoo in large quantities. Sweet pongal, "
                     "halwa, and similar festival foods.",
         nutrients=Nutrients(calories=320, protein_g=15, fiber_g=5, iron_mg=5, calcium_mg=180).model_dump(),
-        taste_tags=["vegetarian"], condition_tags=["gdm"],
+        taste_tags=['contains-egg'], condition_tags=["gdm"],
         source_citation="VERIFY -- FOGSI GDM dietary guidance 2022 (draft placeholder)",
     ).model_dump(),
     WellnessContent(
@@ -381,7 +382,7 @@ _CONTENT: list[dict] = [
              "fish, or lentils at every meal. Add sesame seeds (til) and flaxseed to rotis or "
              "rice. A banana with peanut butter or curd is a useful snack.",
         nutrients=Nutrients(calories=420, protein_g=18, fiber_g=5, iron_mg=5, calcium_mg=180).model_dump(),
-        taste_tags=["vegetarian"], condition_tags=["low_weight"],
+        taste_tags=['non-veg', 'contains-egg'], condition_tags=["low_weight"],
         source_citation="VERIFY -- ICMR recommended dietary allowances (draft placeholder)",
     ).model_dump(),
     WellnessContent(
@@ -406,6 +407,12 @@ _CONTENT: list[dict] = [
         source_citation="VERIFY -- national antenatal nutrition guidance (draft placeholder)",
     ).model_dump(),
 ]
+
+
+# Individual demo food options
+from wellness.food_options import build_food_options
+_CONTENT.extend(build_food_options())
+
 
 _PROVIDERS: list[dict] = [
     Provider(
@@ -514,20 +521,19 @@ def remove_from_plan(woman_id: str, content_id: str, token: str):
 
 @router.put("/diet-profile/{woman_id}")
 def save_diet_profile(woman_id: str, profile: DietProfile, token: str):
-    """She fills this in herself. Used only to show her relevant CONTENT
-    sections -- never to generate clinical recommendations."""
+
     require_self(token, woman_id)
-    _DIET_PROFILES[woman_id] = profile.model_dump()
+    if profile.woman_id != woman_id:
+        raise HTTPException(status_code=422, detail="woman_id mismatch")
+    upsert_diet_profile(woman_id, profile.model_dump(mode="json"))
     return {"status": "saved", "woman_id": woman_id}
 
 
 @router.get("/diet-profile/{woman_id}")
 def get_diet_profile(woman_id: str, token: str):
+
     require_self(token, woman_id)
-    profile = _DIET_PROFILES.get(woman_id)
-    if profile is None:
-        return {"profile": None}
-    return {"profile": profile}
+    return {"profile": db_get_diet_profile(woman_id)}
 
 
 @router.get("/diet-content/{woman_id}")
@@ -536,7 +542,7 @@ def get_diet_content_personalized(woman_id: str, token: str, stage: Optional[str
     that match her self-reported diet profile. Content is pre-written,
     not generated. This is a content-library filter, not a clinical recommendation."""
     require_self(token, woman_id)
-    profile = _DIET_PROFILES.get(woman_id, {})
+    profile = (db_get_diet_profile(woman_id) or {})
     # Build list of active condition tags from self-reported profile
     active_conditions: list[str] = []
     if profile.get("has_gdm"):
@@ -604,7 +610,7 @@ class FoodFeedback(BaseModel):
     """Mother marks a food as unsuitable and optionally receives an alternative.
     """
     woman_id: str
-    date: datetime = datetime.now(timezone.utc)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     food_id: str
     issue: str                     # "nauseous" | "expensive" | "unavailable" | "disliked"
     alternative_id: str | None = None
@@ -619,6 +625,8 @@ class BudgetProfile(BaseModel):
     available_ingredients: list[str] = []
 
 # Import SQLite persistence helpers – use top‑level import for uvicorn setup
+from fastapi import HTTPException
+
 from persistence_sqlite import (
     init_db,
     insert_daily_checkin,
@@ -707,49 +715,158 @@ def post_food_feedback(woman_id: str, feedback: FoodFeedback, token: str):
 
 @router.get("/food-suggestions/{woman_id}")
 def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None, region: Optional[str] = None):
-    """Return a list of food items filtered by the mother’s profiles and a short
-    explanation of why each item was chosen. No clinical advice – pure content
-    filtering based on self‑reported data."""
+
+
     require_self(token, woman_id)
-    profile = _DIET_PROFILES.get(woman_id, {})
-    checkins = _DAILY_CHECKINS.get(woman_id, [])
-    latest_checkin = checkins[-1] if checkins else {}
-    allergies = _ALLERGY_PROFILES.get(woman_id, {})
-    budget = _BUDGET_PROFILES.get(woman_id, {})
 
-    results = _CONTENT
-    if stage:
-        results = [c for c in results if c["stage"] == stage]
-    if region:
-        results = [c for c in results if c["region"] in (region, "general")]
+    from persistence_sqlite import get_food_feedback
 
-    # Allergy filter – drop any item mentioning an allergen
-    if allergies:
-        allergen_list = [a.lower() for a in allergies.get("allergens", [])]
-        if allergen_list:
-            results = [c for c in results if not any(a in (c["title"] + c["body"]).lower() for a in allergen_list)]
+    profile = db_get_diet_profile(woman_id) or {}
+    allergies = db_get_allergy_profile(woman_id) or {}
+    budget = db_get_budget_profile(woman_id) or {}
 
-    # Budget filter – use affordability tags instead of calorie cap
-    if budget:
-        b = budget.get("budget", "medium")
-        # Determine allowed affordability levels based on selected budget
-        if b == "low":
-            allowed = {"low"}
-        elif b == "medium":
-            allowed = {"low", "medium"}
-        else:
-            allowed = {"low", "medium", "high"}
-        results = [c for c in results if c.get("affordability", "medium") in allowed]
-        # Ingredient filter – keep if any listed ingredient appears in title/body
-        ingredients = [i.lower() for i in budget.get("available_ingredients", [])]
-        if ingredients:
-            results = [c for c in results if any(ing in (c["title"] + c["body"]).lower() for ing in ingredients)]
+    def norm(value):
+        return str(value).strip().casefold()
 
+    aliases = {
+        "peanuts": "peanut",
+        "groundnut": "peanut",
+        "groundnuts": "peanut",
+        "dairy": "milk",
+        "lactose": "milk",
+        "eggs": "egg",
+        "soya": "soy",
+        "soybean": "soy",
+        "sesame seeds": "sesame",
+    }
+
+    def allergen_name(value):
+        value = norm(value)
+        return aliases.get(value, value)
+
+    selected_allergens = {
+        allergen_name(value)
+        for value in allergies.get("allergens", [])
+        if norm(value)
+    }
+    dislikes = [
+        norm(value) for value in profile.get("food_dislikes", [])
+        if norm(value)
+    ]
+    available = [
+        norm(value) for value in budget.get("available_ingredients", [])
+        if norm(value)
+    ]
+
+    allowed = {
+        "low": {"low"},
+        "medium": {"low", "medium"},
+        "high": {"low", "medium", "high"},
+    }.get(budget.get("budget", "medium"))
+
+    if allowed is None:
+        raise HTTPException(status_code=422, detail="Invalid budget level")
+
+    # The highest database ID is the latest submitted feedback.
+    feedback_rows = get_food_feedback(woman_id)
+    latest_feedback = {}
+    for row in sorted(feedback_rows, key=lambda row: row.get("id", 0)):
+        latest_feedback[row["food_id"]] = norm(row.get("issue", ""))
+
+    rejected_issues = {"nauseous", "expensive", "unavailable", "disliked", "swapped"}
     suggestions = []
-    for item in results:
-        exp = _build_match_explanation(profile, latest_checkin, allergies, budget)
-        copy_item = dict(item)
-        copy_item["match_explanation"] = exp
-        suggestions.append(copy_item)
-    return {"suggestions": suggestions}
+    excluded_for_metadata = 0
+
+    for item in _CONTENT:
+        if item.get("type") != "diet":
+            continue
+        if stage and item.get("stage") != stage:
+            continue
+        if region and item.get("region") not in (region, "general"):
+            continue
+
+        tags = {norm(value) for value in item.get("taste_tags", [])}
+
+        if profile.get("is_vegan"):
+            if "vegan" not in tags or tags.intersection({"non-veg", "contains-egg"}):
+                continue
+        elif profile.get("is_vegetarian"):
+            if not tags.intersection({"vegetarian", "vegan"}):
+                continue
+            if tags.intersection({"non-veg", "contains-egg"}):
+                continue
+
+        ingredients = [norm(value) for value in item.get("ingredients", [])]
+        ingredient_text = " ".join(ingredients)
+        searchable = " ".join([
+            norm(item.get("title", "")),
+            norm(item.get("body", "")),
+            ingredient_text,
+        ])
+
+        if selected_allergens:
+            if (
+                not ingredients
+                or item.get("allergen_list_complete") is not True
+                or not isinstance(item.get("allergens"), list)
+            ):
+                excluded_for_metadata += 1
+                continue
+
+            listed_allergens = {
+                allergen_name(value) for value in item["allergens"]
+            }
+            if selected_allergens.intersection(listed_allergens):
+                continue
+            if any(value in ingredient_text for value in selected_allergens):
+                continue
+
+        if any(value in searchable for value in dislikes):
+            continue
+
+        if item.get("affordability", "medium") not in allowed:
+            continue
+
+        # Match actual ingredient fields, not an educational paragraph.
+        matched = [
+            value for value in available
+            if any(value in ingredient for ingredient in ingredients)
+        ]
+        if available and not matched:
+            continue
+
+        feedback = latest_feedback.get(item.get("id"), "")
+        if feedback in rejected_issues:
+            continue
+
+        reasons = []
+        if stage:
+            reasons.append("matches your selected stage")
+        if profile.get("is_vegan"):
+            reasons.append("tagged vegan")
+        elif profile.get("is_vegetarian"):
+            reasons.append("tagged vegetarian or vegan")
+        reasons.append("within your selected affordability category")
+        if matched:
+            reasons.append("includes ingredients you listed: " + ", ".join(matched))
+        if feedback == "worked":
+            reasons.append("you previously marked this as worked for me")
+
+        result = dict(item)
+        result["match_explanation"] = "; ".join(reasons)
+        result["previous_feedback"] = feedback or None
+        result["filter_notes"] = (
+            ["Filtered using declared allergens; check labels and preparation."]
+            if selected_allergens else []
+        )
+        suggestions.append(result)
+
+    return {
+        "suggestions": suggestions,
+        "excluded_for_incomplete_allergen_data": excluded_for_metadata,
+        "message": (
+            None if suggestions
+            else "No matching options with the current preferences and available food data."
+        ),
+    }
 
