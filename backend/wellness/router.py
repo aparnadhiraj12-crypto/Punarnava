@@ -619,6 +619,7 @@ class BudgetProfile(BaseModel):
 
 # Import SQLite persistence helpers – support both package and top‑level imports
 try:
+    # When wellness is a subpackage of a larger package (e.g., backend.wellness)
     from ..persistence_sqlite import (
         init_db,
         insert_daily_checkin,
@@ -630,18 +631,33 @@ try:
         insert_food_feedback,
         get_food_feedback as db_get_food_feedback,
     )
-except ImportError:  # fallback when wellness is imported as a top‑level module
-    from persistence_sqlite import (
-        init_db,
-        insert_daily_checkin,
-        get_daily_checkins,
-        upsert_allergy_profile,
-        get_allergy_profile as db_get_allergy_profile,
-        upsert_budget_profile,
-        get_budget_profile as db_get_budget_profile,
-        insert_food_feedback,
-        get_food_feedback as db_get_food_feedback,
-    )
+except ImportError:
+    try:
+        # When the repository root is on the PYTHONPATH and we import as a top‑level package
+        from backend.persistence_sqlite import (
+            init_db,
+            insert_daily_checkin,
+            get_daily_checkins,
+            upsert_allergy_profile,
+            get_allergy_profile as db_get_allergy_profile,
+            upsert_budget_profile,
+            get_budget_profile as db_get_budget_profile,
+            insert_food_feedback,
+            get_food_feedback as db_get_food_feedback,
+        )
+    except ImportError:
+        # Fallback to a relative import from the current directory (works when executed directly)
+        from persistence_sqlite import (
+            init_db,
+            insert_daily_checkin,
+            get_daily_checkins,
+            upsert_allergy_profile,
+            get_allergy_profile as db_get_allergy_profile,
+            upsert_budget_profile,
+            get_budget_profile as db_get_budget_profile,
+            insert_food_feedback,
+            get_food_feedback as db_get_food_feedback,
+        )
 
 # Initialize DB at import time (optional, also called on startup)
 init_db()
