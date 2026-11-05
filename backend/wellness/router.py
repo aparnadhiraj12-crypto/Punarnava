@@ -1,4 +1,4 @@
-﻿"""
+"""
 Wellness service.
 
 Not in the original v0 PRD scope -- added after, alongside auth. Serves
@@ -70,6 +70,7 @@ class WellnessContent(BaseModel):
     nutrients: Optional[Nutrients] = None  # diet only
     taste_tags: list[str] = []  # vegetarian, spicy, mild, regional cuisine names etc.
     condition_tags: list[str] = []  # gdm, nausea, low_weight, sickness -- self-reported profile only
+    affordability: str = "medium"  # low | medium | high – estimated cost tag for budgeting
     source_citation: str
 
 
@@ -585,3 +586,167 @@ def get_diet_content_personalized(woman_id: str, token: str, stage: Optional[str
         "active_conditions": active_conditions,
         "profile": profile or None,
     }
+
+# --- New models for daily check‑in, feedback, allergies, budget ---
+
+class DailyCheckIn(BaseModel):
+    """Self‑reported daily symptom check‑in.
+    All fields are free‑text choices coming from the UI – never clinical inference.
+    """
+    woman_id: str
+    date: datetime = datetime.now(timezone.utc)
+    nausea: str = "none"          # "none" | "mild" | "severe"
+    appetite: str = "normal"      # "low" | "normal" | "high"
+    food_tolerance: str = "good"  # "good" | "poor"
+
+class FoodFeedback(BaseModel):
+    """Mother marks a food as unsuitable and optionally receives an alternative.
+    """
+    woman_id: str
+    date: datetime = datetime.now(timezone.utc)
+    food_id: str
+    issue: str                     # "nauseous" | "expensive" | "unavailable" | "disliked"
+    alternative_id: str | None = None
+
+class AllergyProfile(BaseModel):
+    woman_id: str
+    allergens: list[str] = []
+
+class BudgetProfile(BaseModel):
+    woman_id: str
+    budget: str = "medium"        # "low" | "medium" | "high"
+    available_ingredients: list[str] = []
+
+# Import SQLite persistence helpers
+from ..persistence_sqlite import (
+    init_db,
+    insert_daily_checkin,
+    get_daily_checkins,
+    upsert_allergy_profile,
+    get_allergy_profile as db_get_allergy_profile,
+    upsert_budget_profile,
+    get_budget_profile as db_get_budget_profile,
+    insert_food_feedback,
+    get_food_feedback as db_get_food_feedback,
+)
+
+# Initialize DB at import time (optional, also called on startup)
+init_db()
+
+_DAILY_CHECKINS: dict[str, list[dict]] = {}
+_FOOD_FEEDBACK: dict[str, list[dict]] = {}
+_ALLERGY_PROFILES: dict[str, dict] = {}
+_BUDGET_PROFILES: dict[str, dict] = {}
+
+# Helper to build a human‑readable explanation for a suggestion
+def _build_match_explanation(profile: dict, checkin: dict, allergies: dict, budget: dict) -> str:
+    parts = []
+    if profile:
+        if profile.get("is_vegetarian"):
+            parts.append("vegetarian preference")
+        if profile.get("is_vegan"):
+            parts.append("vegan preference")
+    if checkin:
+        if checkin.get("nausea") and checkin["nausea"] != "none":
+            parts.append(f"nausea {checkin['nausea']}")
+        if checkin.get("appetite") and checkin["appetite"] != "normal":
+            parts.append(f"appetite {checkin['appetite']}")
+        if checkin.get("food_tolerance") and checkin["food_tolerance"] != "good":
+            parts.append(f"food tolerance {checkin['food_tolerance']}")
+    if budget:
+        parts.append(f"budget {budget.get('budget', 'medium')}")
+    if allergies and allergies.get("allergens"):
+        parts.append("allergy safe")
+    if not parts:
+        return "General suggestion"
+    return "Matches: " + ", ".join(parts)
+
+# --- Endpoints ----------------------------------------------------------
+
+@router.post("/daily-checkin/{woman_id}")
+def post_daily_checkin(woman_id: str, checkin: DailyCheckIn, token: str):
+    require_self(token, woman_id)
+    insert_daily_checkin(woman_id, checkin.model_dump())
+    return {"status": "saved", "woman_id": woman_id}
+
+@router.get("/daily-checkin/{woman_id}")
+def get_daily_checkin(woman_id: str, token: str):
+    require_self(token, woman_id)
+    return {"checkins": get_daily_checkins(woman_id)}
+
+@router.put("/allergy-profile/{woman_id}")
+def set_allergy_profile(woman_id: str, profile: AllergyProfile, token: str):
+    require_self(token, woman_id)
+    upsert_allergy_profile(woman_id, profile.allergens)
+    return {"status": "saved", "woman_id": woman_id}
+
+@router.get("/allergy-profile/{woman_id}")
+def get_allergy_profile(woman_id: str, token: str):
+    require_self(token, woman_id)
+    return db_get_allergy_profile(woman_id)
+
+@router.put("/budget-profile/{woman_id}")
+def set_budget_profile(woman_id: str, profile: BudgetProfile, token: str):
+    require_self(token, woman_id)
+    upsert_budget_profile(woman_id, profile.budget, profile.available_ingredients)
+    return {"status": "saved", "woman_id": woman_id}
+
+@router.get("/budget-profile/{woman_id}")
+def get_budget_profile(woman_id: str, token: str):
+    require_self(token, woman_id)
+    return db_get_budget_profile(woman_id)
+
+@router.post("/food-feedback/{woman_id}")
+def post_food_feedback(woman_id: str, feedback: FoodFeedback, token: str):
+    require_self(token, woman_id)
+    insert_food_feedback(woman_id, feedback.model_dump())
+    return {"status": "saved", "woman_id": woman_id}
+
+@router.get("/food-suggestions/{woman_id}")
+def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None, region: Optional[str] = None):
+    """Return a list of food items filtered by the mother’s profiles and a short
+    explanation of why each item was chosen. No clinical advice – pure content
+    filtering based on self‑reported data."""
+    require_self(token, woman_id)
+    profile = _DIET_PROFILES.get(woman_id, {})
+    checkins = _DAILY_CHECKINS.get(woman_id, [])
+    latest_checkin = checkins[-1] if checkins else {}
+    allergies = _ALLERGY_PROFILES.get(woman_id, {})
+    budget = _BUDGET_PROFILES.get(woman_id, {})
+
+    results = _CONTENT
+    if stage:
+        results = [c for c in results if c["stage"] == stage]
+    if region:
+        results = [c for c in results if c["region"] in (region, "general")]
+
+    # Allergy filter – drop any item mentioning an allergen
+    if allergies:
+        allergen_list = [a.lower() for a in allergies.get("allergens", [])]
+        if allergen_list:
+            results = [c for c in results if not any(a in (c["title"] + c["body"]).lower() for a in allergen_list)]
+
+    # Budget filter – use affordability tags instead of calorie cap
+    if budget:
+        b = budget.get("budget", "medium")
+        # Determine allowed affordability levels based on selected budget
+        if b == "low":
+            allowed = {"low"}
+        elif b == "medium":
+            allowed = {"low", "medium"}
+        else:
+            allowed = {"low", "medium", "high"}
+        results = [c for c in results if c.get("affordability", "medium") in allowed]
+        # Ingredient filter – keep if any listed ingredient appears in title/body
+        ingredients = [i.lower() for i in budget.get("available_ingredients", [])]
+        if ingredients:
+            results = [c for c in results if any(ing in (c["title"] + c["body"]).lower() for ing in ingredients)]
+
+    suggestions = []
+    for item in results:
+        exp = _build_match_explanation(profile, latest_checkin, allergies, budget)
+        copy_item = dict(item)
+        copy_item["match_explanation"] = exp
+        suggestions.append(copy_item)
+    return {"suggestions": suggestions}
+
