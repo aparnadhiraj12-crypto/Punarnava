@@ -1,3 +1,4 @@
+import { createPortal, flushSync } from "react-dom";
 import { useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
@@ -319,6 +320,7 @@ export default function App() {
         {lookupBusy && <div className="loading-line" role="status"><span /> Retrieving patient history</div>}
         {patient && <>
           {historyNotice && <p className="notice-message" role="status">{historyNotice}</p>}
+          <HandoffPrint key={patient.id} patientId={patient.id} token={session.token} />
           <section className="patient-banner">
             <div className="patient-identity"><span className="patient-monogram" aria-hidden="true">{patient.name?.trim()?.[0]?.toUpperCase() || "P"}</span><div><p className="eyebrow">Patient record</p><h2>{patient.name}</h2><span className="patient-code">{patient.mother_code || code}</span></div></div>
             <div className="record-stamp"><span className="record-stamp-dot" />Record located</div>
@@ -534,5 +536,95 @@ function DoctorAppointmentForm({ patient, token }) {
       </form>
       <p role="status">{status}</p>
     </section>
+  );
+}
+
+
+function HandoffPrint({ patientId, token }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sheet, setSheet] = useState(null);
+
+  async function printSummary(event) {
+    const button = event.currentTarget;
+    setBusy(true);
+    setError("");
+    try {
+      const id = encodeURIComponent(patientId);
+      const [record, report] = await Promise.all([
+        request(`/record/women/${id}`, { token }),
+        request(`/report/${id}`, { token }),
+      ]);
+      // A different patient may have been selected while the requests ran.
+      if (!button.isConnected) return;
+      flushSync(() => setSheet({ record, report }));
+      window.print();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSheet(null);
+      setBusy(false);
+    }
+  }
+
+  const record = sheet?.record;
+  const report = sheet?.report;
+  const appointment = record?.next_doctor_appointment?.appointment_date;
+  const followUps = (report?.milestones || []).filter(
+    item => item.state === "due" || item.state === "pending"
+  );
+
+  return (
+    <>
+      <div className="handoff-actions">
+        <button className="primary-button" type="button" disabled={busy}
+          onClick={printSummary}>
+          {busy ? "Preparing summary..." : "Print discharge summary"}
+        </button>
+        {error && <p role="alert">{error}</p>}
+      </div>
+
+      {sheet && createPortal(
+        <article className="handoff-print-sheet">
+          <header>
+            <p>PUNARNAVA</p>
+            <h1>Discharge handoff summary</h1>
+            <h2>{record.name}</h2>
+            <p>Patient code: {record.mother_code || "Not recorded"}</p>
+          </header>
+
+          <h2>Delivery details</h2>
+          <p>Delivery date: {formatDate(record.delivery_date)}</p>
+          <p>Delivery mode: {label(record.mode_of_delivery) || "Not recorded"}</p>
+
+          <h2>Next doctor appointment</h2>
+          <p>{appointment ? formatDate(appointment) : "No appointment booked."}</p>
+
+          <h2>Recorded prescriptions</h2>
+          {report.prescribed_medication?.length ? (
+            <ul>{report.prescribed_medication.map(med => (
+              <li key={med.id}>
+                <strong>{med.medication_name}</strong>
+                {med.dosage && ` - ${med.dosage}`}
+                {med.instructions && ` - ${med.instructions}`}
+              </li>
+            ))}</ul>
+          ) : <p>No prescriptions recorded.</p>}
+
+          <h2>Follow-up milestones</h2>
+          {followUps.length ? (
+            <>
+              <p>Estimated dates from the care timeline.</p>
+              <ul>{followUps.map(item => (
+                <li key={item.rule_id}>
+                  {label(item.type)} - {formatDate(item.due_date)}
+                </li>
+              ))}</ul>
+            </>
+          ) : <p>No upcoming milestones listed.</p>}
+        </article>,
+        document.body
+      )}
+    </>
   );
 }
