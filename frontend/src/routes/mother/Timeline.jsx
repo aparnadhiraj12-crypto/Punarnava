@@ -90,7 +90,7 @@ export default function Timeline() {
         <section className="next-card">
           <div className="next-content">
             <div className="eyebrow">Next milestone</div>
-            <div className="display display-lg">{milestoneLabel(next.type)}</div>
+            <div className="display display-lg"><Link to={`/m/item/${encodeURIComponent(next.rule_id)}`}>{milestoneLabel(next.type)}</Link></div>
             <Badge tone={stateTone(next.state)}>{stateText(next)}</Badge>
             <p>Due {formatDate(next.due_date)}.</p>
             {isActionable(next) && (
@@ -143,7 +143,7 @@ export default function Timeline() {
               <div className="timeline-card">
                 <div className="timeline-top">
                   <div>
-                    <div className="card-title">{milestoneLabel(m.type)}</div>
+                    <Link className="card-title" to={`/m/item/${encodeURIComponent(m.rule_id)}`}>{milestoneLabel(m.type)}</Link>
                   </div>
                   <Badge tone={stateTone(m.state)}>{stateText(m)}</Badge>
                 </div>
