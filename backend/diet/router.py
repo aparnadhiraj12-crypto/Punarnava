@@ -32,5 +32,5 @@ class PlanRequest(BaseModel):
 def make_plan(req: PlanRequest, token: str):
     if get_current_user(token) is None:
         raise HTTPException(401, "invalid or expired token")
-    plan = build_plan(req.profile, req.checkin)
+    plan = build_plan(req.profile, req.checkin, verified_only=True)
     return {**plan.to_dict(), "disclaimer": _DISCLAIMER}

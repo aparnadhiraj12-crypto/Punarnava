@@ -1,0 +1,32 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import DailyDietCheckIn from './DailyDietCheckIn';
+import { getDailyCheckIns, postDailyCheckIn } from '../../lib/api';
+vi.mock('../../lib/api', () => ({ getDailyCheckIns: vi.fn(), postDailyCheckIn: vi.fn() }));
+beforeEach(() => vi.resetAllMocks());
+
+it('keeps unsubmitted answers through history failure, history retry and failed save', async () => {
+  const user = userEvent.setup();
+  getDailyCheckIns.mockRejectedValueOnce(new Error('History unavailable'));
+  const onSaved = vi.fn();
+  render(<DailyDietCheckIn womanId="mother" onSaved={onSaved} />);
+  await screen.findByText('History unavailable');
+  await user.click(screen.getByRole('radio', { name: 'Severe' }));
+  await user.click(screen.getByRole('radio', { name: 'Low' }));
+  getDailyCheckIns.mockResolvedValueOnce({ checkins: [{ id: 1, date: '2026-01-01T12:00:00Z', nausea: 'none', appetite: 'high', food_tolerance: 'good' }] });
+  await user.click(screen.getByRole('button', { name: 'Reload check-in history' }));
+  await screen.findByText('Last saved check-in');
+  expect(screen.getByRole('radio', { name: 'Severe' })).toBeChecked();
+  expect(screen.getByRole('radio', { name: 'Low' })).toBeChecked();
+  postDailyCheckIn.mockRejectedValueOnce(new Error('Save unavailable'));
+  await user.click(screen.getByRole('button', { name: "Save today's check-in" }));
+  await screen.findByText('Save unavailable');
+  expect(onSaved).not.toHaveBeenCalled();
+  expect(screen.getByRole('radio', { name: 'Severe' })).toBeChecked();
+  postDailyCheckIn.mockResolvedValueOnce({ status: 'saved' });
+  await user.click(screen.getByRole('button', { name: "Save today's check-in" }));
+  await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  expect(postDailyCheckIn).toHaveBeenLastCalledWith('mother', expect.objectContaining({ nausea: 'severe', appetite: 'low' }));
+  expect(screen.getByRole('radio', { name: 'Severe' })).toBeChecked();
+});

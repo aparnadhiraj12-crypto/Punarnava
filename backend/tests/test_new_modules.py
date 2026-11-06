@@ -587,7 +587,7 @@ def test_self_report_responses_carry_no_scoring_fields():
 # ---- wellness extensions: nutrients, taste, saved plan, gym ----
 
 
-def test_diet_content_has_nutrients_and_avoid_notes():
+def test_diet_content_keeps_nutrition_fields_without_unverified_numbers():
     items = [
         c
         for c in client.get(
@@ -595,7 +595,9 @@ def test_diet_content_has_nutrients_and_avoid_notes():
         ).json()["content"]
         if c["type"] == "diet"
     ]
-    assert items and items[0]["nutrients"]["iron_mg"] is not None
+    assert items
+    assert all("nutrients" in item and "avoid_notes" in item and "limit_notes" in item for item in items)
+    assert all(item["nutrients"] is None for item in items)
 
 
 def test_exercise_content_has_subtype():

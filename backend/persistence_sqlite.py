@@ -1,11 +1,12 @@
 # SQLite persistence helpers for diet personalization
 
 import sqlite3
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
-DB_PATH = Path(__file__).with_name("punarnava.db")
+DB_PATH = Path(os.environ.get("PUNARNAVA_DIET_DB_PATH", Path(__file__).with_name("punarnava.db")))
 
 def _connect():
     conn = sqlite3.connect(DB_PATH)
@@ -159,10 +160,26 @@ def insert_food_feedback(woman_id: str, data: Dict[str, Any]):
     conn.commit()
     conn.close()
 
+def undo_food_feedback(woman_id: str, food_id: str):
+    """Append a neutral event; retain user history and make repeated undo a no-op."""
+    conn = _connect()
+    try:
+        with conn:
+            conn.execute(
+                """INSERT INTO food_feedback (woman_id, date, food_id, issue, alternative_id)
+                   SELECT ?, ?, ?, 'undone', NULL
+                   WHERE COALESCE((SELECT issue FROM food_feedback
+                       WHERE woman_id = ? AND food_id = ? ORDER BY id DESC LIMIT 1), 'undone') != 'undone'""",
+                (woman_id, datetime.now(timezone.utc).isoformat(), food_id, woman_id, food_id),
+            )
+    finally:
+        conn.close()
+
+
 def get_food_feedback(woman_id: str) -> List[Dict[str, Any]]:
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM food_feedback WHERE woman_id = ? ORDER BY date", (woman_id,))
+    cur.execute("SELECT * FROM food_feedback WHERE woman_id = ? ORDER BY id", (woman_id,))
     rows = cur.fetchall()
     conn.close()
     return [dict(row) for row in rows]

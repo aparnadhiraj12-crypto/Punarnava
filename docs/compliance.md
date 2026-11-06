@@ -47,6 +47,12 @@ Also run as part of `pytest` CI alongside the golden scheduler tests in
 
 ## Outstanding before this touches a real mother
 
+Diet APIs now withhold draft clinical advice and expose only source-checked,
+unchanged excerpts through the existing diet engine. Source checking is not
+clinical approval. See `diet-personalisation.md` for exact sources, applicability,
+review status, illustrative recipe/cost boundaries and the remaining local
+clinical sign-off requirement. No weight-based dietary targets are computed.
+
 - [ ] Every interval/citation in `ruleset.yaml` marked `VERIFY` needs
       clinician sign-off against the published source.
 - [ ] `danger_signs.yaml` (not yet created) needs the government
