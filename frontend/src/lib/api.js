@@ -35,6 +35,10 @@ async function send(method, path, body, tokenOverride) {
 // listWomen is already sorted worst-first by the backend. Never re-sort it.
 export const listWomen = () => send("GET", "/record/women");
 export const getWoman = (id) => send("GET", `/record/women/${encodeURIComponent(id)}`);
+export const getMilestonePreparation = (womanId, ruleId) =>
+  send("GET", `/preparation/women/${encodeURIComponent(womanId)}/milestones/${encodeURIComponent(ruleId)}`);
+export const saveMilestonePreparation = (womanId, ruleId, payload) =>
+  send("PUT", `/preparation/women/${encodeURIComponent(womanId)}/milestones/${encodeURIComponent(ruleId)}`, payload);
 export const lookupWomanByCode = (code) =>
   send("GET", `/record/lookup/${encodeURIComponent(code)}`);
 export const getInteractions = (id) => send("GET", `/record/women/${encodeURIComponent(id)}/interactions`);

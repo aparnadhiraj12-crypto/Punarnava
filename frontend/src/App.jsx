@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 
 import Timeline from "./routes/mother/Timeline";
+import MilestonePreparation from "./routes/mother/MilestonePreparation";
 import Enrol from "./routes/mother/Enrol";
 import Wellness from "./routes/mother/Wellness";
 import Diet from "./routes/mother/Diet";
@@ -148,7 +149,7 @@ export default function App() {
             </RoleGuard>
           }
         />
-        <Route path="/m/item/:id" element={<Stub title="Milestone detail" />} />
+        <Route path="/m/item/:id" element={<RoleGuard allowedRoles={["mother"]}><MilestonePreparation /></RoleGuard>} />
         <Route
           path="/m/family"
           element={
