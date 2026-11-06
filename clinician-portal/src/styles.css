@@ -219,3 +219,23 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .patient-banner { margin-top: 0; print-color-adjust: exact; }
   .record-section, .aside-section, .facts-strip { break-inside: avoid; }
 }
+
+.handoff-actions { margin: 0 0 1rem; }
+.handoff-print-sheet { display: none; }
+
+@media print {
+  .handoff-actions { display: none !important; }
+  body:has(> .handoff-print-sheet) > :not(.handoff-print-sheet) {
+    display: none !important;
+  }
+  .handoff-print-sheet {
+    display: block;
+    color: black;
+    background: white;
+    font: 11pt/1.45 Georgia, serif;
+  }
+  .handoff-print-sheet header { border-bottom: 1px solid; margin-bottom: 1rem; }
+  .handoff-print-sheet h1 { font-size: 20pt; }
+  .handoff-print-sheet h2 { font-size: 14pt; break-after: avoid; }
+  .handoff-print-sheet li { break-inside: avoid; }
+}
