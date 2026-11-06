@@ -69,7 +69,7 @@ export default function Timeline() {
       )}
 
       <PatientCode code={woman.mother_code} />
-      <NextDoctorAppointment key={woman.id} woman={woman} />
+      <NextDoctorAppointment key={woman.id} woman={woman} allowCalendar />
 
       {woman.clinical_events?.length > 0 && (
         <ul className="tag-row">
