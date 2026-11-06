@@ -1,10 +1,9 @@
 # PUNARNAVA diet ruleset
 #
 # !!! VERIFY !!!
-# Every rule and citation below is a DRAFT for the prototype. Nothing here has
-# been confirmed against the published ICMR-NIN / FOGSI / MoHFW / WHO source.
-# A clinician or nutritionist must sign off each rule before a real mother
-# sees it. Do not treat this content as correct.
+# Rules without source_verified remain DRAFT and are excluded from patient APIs.
+# Source-checked excerpts are unchanged and attributed, not clinician sign-off
+# or approval of an individual diet. See docs/diet-personalisation.md.
 #
 # Format rules (checked by tests/test_diet_rules.py):
 #   - layer: safety | stage | bmi | condition | symptom | preference
@@ -16,7 +15,7 @@
 #   - when: all keys must match (AND). condition/symptom lists match if ANY
 #     listed item is present.
 
-version: "0.1.0-draft"
+version: "0.2.0-source-gated"
 
 rules:
   - id: DIET-SAFE-01
@@ -25,8 +24,12 @@ rules:
     when:
       symptom: [nausea, vomiting]
     advice:
-      note: "If you cannot keep fluids down for a day, keep vomiting, or feel very weak or dizzy, go to a doctor or health centre today. Do not wait."
-    citation: "VERIFY - MoHFW danger signs in pregnancy (draft placeholder)"
+      note: "If your symptoms do not settle or if they stop you doing your daily activities, see your GP."
+    citation: "RCOG — Pregnancy sickness, 2024 patient information, page 4. https://www.rcog.org.uk/media/ajmm3gma/pi_pregnancy-sickness_2024-lp-v13.pdf"
+    source_url: "https://www.rcog.org.uk/media/ajmm3gma/pi_pregnancy-sickness_2024-lp-v13.pdf"
+    source_verified: true
+    verified_on: "2026-11-06"
+    limit_notes: "Pregnancy source excerpt, shown unchanged for any reported nausea; not symptom assessment or triage. GP means a doctor. Local clinical review remains required."
 
   - id: DIET-SAFE-02
     layer: safety
@@ -90,15 +93,12 @@ rules:
     when:
       condition: [gdm, diabetes]
     advice:
-      eat:
-        - "Millets like ragi, jowar or bajra, and whole grains instead of polished rice or maida"
-        - "Dal, curd, eggs or paneer with each meal"
-        - "Plenty of vegetables"
-      limit:
-        - "Sweets, sugary drinks and packaged fruit juice"
-        - "Very large portions of rice or roti at one meal"
-      tip: "Smaller meals spread through the day are easier on blood sugar. Ask your doctor about a short walk after meals."
-    citation: "VERIFY - ICMR-NIN / FOGSI gestational diabetes guidance (draft placeholder)"
+      note: "Your health care team will help you make a healthy eating plan with food choices that are good for you and your baby."
+    citation: "NIH NIDDK — Managing & Treating Gestational Diabetes, Follow a healthy eating plan. https://www.niddk.nih.gov/health-information/diabetes/overview/what-is-diabetes/gestational/management-treatment"
+    source_url: "https://www.niddk.nih.gov/health-information/diabetes/overview/what-is-diabetes/gestational/management-treatment"
+    source_verified: true
+    verified_on: "2026-11-06"
+    limit_notes: "Selected from self-reported GDM, not a diagnosis. No listed recipe is certified suitable for GDM; food amounts and timing belong to the treating team. Local clinical review remains required."
 
   - id: DIET-SYM-NAUSEA-01
     layer: symptom
@@ -107,12 +107,14 @@ rules:
       symptom: [nausea]
     advice:
       eat:
-        - "A dry biscuit, toast or puffed rice before getting out of bed"
-        - "Small sips of water, ginger tea or nimbu pani between meals"
+        - "eat something like dry toast or a plain biscuit in the morning"
       limit:
-        - "Strong smells, very oily food and large meals"
-      tip: "Ask someone at home to cook so you can stay away from kitchen smells."
-    citation: "VERIFY - FOGSI nausea and vomiting in pregnancy guidance (draft placeholder)"
+        - "avoid foods or smells that make you feel sick"
+    citation: "NHS — Vomiting and morning sickness, Things you can try yourself; reviewed 17 April 2024. https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/"
+    source_url: "https://www.nhs.uk/pregnancy/common-symptoms/vomiting-and-morning-sickness/"
+    source_verified: true
+    verified_on: "2026-11-06"
+    limit_notes: "Pregnancy source excerpts, not a prescribed meal. Check labels and your own restrictions; these examples are not allergen-filtered recipes. The same information is shown for mild and severe answers, without assessment. Local clinical review remains required."
   - id: DIET-STG-T2-01
     layer: stage
     order: 12

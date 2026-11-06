@@ -36,9 +36,15 @@ def test_every_rule_has_required_fields():
         assert r["advice"], f"{r['id']} has empty advice"
 
 
-def test_every_citation_marked_verify_until_signed_off():
+def test_every_citation_is_either_draft_or_has_source_verification_metadata():
     for r in load()["rules"]:
-        assert r["citation"].startswith("VERIFY"), r["id"]
+        if r.get("source_verified"):
+            assert not r["citation"].startswith("VERIFY"), r["id"]
+            assert r["source_url"].startswith("https://"), r["id"]
+            assert r["source_url"] in r["citation"], r["id"]
+            assert r["verified_on"] and r["limit_notes"], r["id"]
+        else:
+            assert r["citation"].startswith("VERIFY"), r["id"]
 
 
 def test_no_forbidden_keys_anywhere():

@@ -32,6 +32,7 @@ class Card:
     limit: list[str] = field(default_factory=list)
     tip: Optional[str] = None
     note: Optional[str] = None
+    limit_notes: str = "General source information, not an individual medical diet."
 
 
 @dataclass
@@ -87,6 +88,7 @@ def build_plan(
     profile: DietProfile,
     checkin: Optional[DietCheckin] = None,
     ruleset: Optional[dict] = None,
+    verified_only: bool = False,
 ) -> DietPlan:
     checkin = checkin or DietCheckin()
     ruleset = ruleset or load_ruleset()
@@ -94,7 +96,13 @@ def build_plan(
     for r in rules:
         _check_when_keys(r)
 
-    fired = [r for r in rules if _matches(r["when"], profile, checkin)]
+    fired = [r for r in rules if _matches(r["when"], profile, checkin)
+             and (not verified_only or (
+                 r.get("source_verified") is True
+                 and not r["citation"].startswith("VERIFY")
+                 and r.get("source_url") and r.get("verified_on")
+                 and (profile.stage.value != "postpartum" or r.get("postpartum_verified") is True)
+             ))]
     fired.sort(key=lambda r: (r["order"], r["id"]))
 
     cards = []
@@ -108,5 +116,6 @@ def build_plan(
             limit=list(a.get("limit", [])),
             tip=a.get("tip"),
             note=a.get("note"),
+            limit_notes=r.get("limit_notes", "Draft content; excluded from source-backed patient guidance."),
         ))
     return DietPlan(ruleset_version=ruleset["version"], cards=cards)

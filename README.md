@@ -79,6 +79,26 @@ Set `VITE_API_BASE` for a deployed API and configure
 - `docs/compliance.md` — the three build rules and why they're enforced
   in code, not policy
 - `docs/roadmap.md` — the three horizons and release phases
+- `docs/diet-personalisation.md` — implemented diet preferences, check-ins,
+  source verification, recipe/allergen/cost metadata, swaps, undo and limitations
+
+## Diet personalisation
+
+The mother's `/m/diet` page persists her diet profile, allergies, budget,
+available ingredients, daily check-ins and food feedback. Combined filters and
+swaps are validated on the backend. Undo keeps feedback history without adding
+a positive rating. Source-checked general information is selected through the
+existing diet engine; unverified clinical drafts are withheld. Recipe ideas and
+cost estimates remain explicitly illustrative, not prescribed diets or surveyed
+prices. Local clinical sign-off is still required before real-world use.
+
+The existing diet SQLite location is unchanged by default (`backend/punarnava.db`).
+Optionally set `PUNARNAVA_DIET_DB_PATH` to a writable persistent database path;
+this does not migrate existing records. Backend tests isolate this store in a
+temporary database rather than writing to a developer's user data.
+
+Verification: `cd backend && python -m pytest tests/ -q`; then from `frontend`,
+run `npm ci`, `npm test` and `npm run build`.
 
 ## Publishing to GitHub
 

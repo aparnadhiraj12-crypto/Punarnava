@@ -6,17 +6,13 @@ diet/exercise/hydration content, a directory of nearby providers (yoga
 instructors, dietitians, psychiatrists, counsellors, gyms), and two
 things she sets herself: taste preferences and a saved plan.
 
-Compliance boundary, stated plainly because it's the one thing in this
-module that's easy to get wrong under time pressure: content and provider
-matches are keyed on postpartum STAGE and REGION only, never on a
-mother's clinical_events. The moment this filters by "what's due" or "what
-condition she has," it stops being a content library and starts being a
-treatment recommendation -- which is one of the six things the event's
-scope rules exclude (see docs/compliance.md, "Treatment recommendations").
-Do not add a woman_id parameter to get_content or get_providers that
-changes what comes back based on her clinical history. If personalization
-by condition is ever wanted, that's a v1+ conversation with whoever owns
-compliance sign-off, not a quick addition here.
+Compliance boundary: public content and provider matches use STAGE and REGION,
+never clinical_events. Private diet routes use the mother's explicitly saved
+choices and current check-in, not her clinical record. Source information is
+selected through the existing deterministic diet engine, with unverified rules
+withheld from patient APIs. Source verification is not clinician sign-off.
+Recipes are illustrative food ideas, not condition-approved treatment plans.
+Do not add clinical-history inference to any of these paths.
 
 nutrients on a WellnessContent item are FACTS ABOUT THE FOOD (calories,
 protein, fiber, iron, calcium) -- never a personalised target computed
@@ -39,7 +35,7 @@ map. Good enough to demo, not to ship.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from pydantic import Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, timezone
 import uuid
 
@@ -454,6 +450,21 @@ _SAVED_PLANS: dict[str, list[dict]] = {}      # woman_id -> [{content_id, saved_
 _DIET_PROFILES: dict[str, dict] = {}          # woman_id -> DietProfile.model_dump()
 
 
+def _public_content(item: dict) -> dict:
+    """Keep stable content IDs/shape, but do not publish draft medical claims."""
+    result = dict(item)
+    result.setdefault("limit_notes", None)
+    if item.get("type") == "diet" and item.get("source_citation", "").startswith("VERIFY"):
+        result.update(
+            title="Unverified draft nutrition content",
+            body="This draft is withheld from medical guidance until its source is verified.",
+            nutrients=None, avoid_notes=None,
+            limit_notes="Unverified prototype content; not clinical guidance.",
+            content_status="unverified_withheld",
+        )
+    return result
+
+
 @router.get("/content")
 def get_content(stage: Optional[str] = None, region: Optional[str] = None):
     results = _CONTENT
@@ -461,7 +472,7 @@ def get_content(stage: Optional[str] = None, region: Optional[str] = None):
         results = [c for c in results if c["stage"] == stage]
     if region:
         results = [c for c in results if c["region"] in (region, "general")]
-    return {"content": results}
+    return {"content": [_public_content(item) for item in results]}
 
 
 @router.get("/providers")
@@ -508,7 +519,7 @@ def get_saved_plan(woman_id: str, token: str):
     frontend doesn't need a second round trip."""
     saved = _SAVED_PLANS.get(woman_id, [])
     by_id = {c["id"]: c for c in _CONTENT}
-    items = [dict(by_id[s["content_id"]], saved_at=s["saved_at"])
+    items = [dict(_public_content(by_id[s["content_id"]]), saved_at=s["saved_at"])
              for s in saved if s["content_id"] in by_id]
     return {"items": items}
 
@@ -538,82 +549,54 @@ def get_diet_profile(woman_id: str, token: str):
 
 @router.get("/diet-content/{woman_id}")
 def get_diet_content_personalized(woman_id: str, token: str, stage: Optional[str] = None, region: Optional[str] = None):
-    """Returns content filtered by stage/region PLUS condition-tagged items
-    that match her self-reported diet profile. Content is pre-written,
-    not generated. This is a content-library filter, not a clinical recommendation."""
+    """Compatibility shape backed by the same filters and source-gated engine."""
     require_self(token, woman_id)
-    profile = (db_get_diet_profile(woman_id) or {})
-    # Build list of active condition tags from self-reported profile
-    active_conditions: list[str] = []
+    result = get_food_suggestions(woman_id, token, stage=stage, region=region)
+    profile = db_get_diet_profile(woman_id) or {}
+    from wellness.diet_guidance import current_checkin
+    checkin = current_checkin(get_daily_checkins(woman_id))
+    active_conditions = []
     if profile.get("has_gdm"):
         active_conditions.append("gdm")
-    nausea = profile.get("nausea_level", "none")
-    if nausea in ("mild", "severe"):
+    if checkin.get("nausea") in ("mild", "severe"):
         active_conditions.append("nausea")
-    sickness = profile.get("current_sickness", "none")
-    if sickness in ("fever", "vomiting"):
-        active_conditions.append("sickness")
-    weight = profile.get("weight_kg")
-    if weight and weight < 45:
-        active_conditions.append("low_weight")
-
-    results = _CONTENT
-    if stage:
-        results = [c for c in results if c["stage"] == stage]
-    if region:
-        results = [c for c in results if c["region"] in (region, "general")]
-
-    # Split into base content and condition-specific "for_you" items
-    base = [c for c in results if not c.get("condition_tags")]
-    for_you = [c for c in _CONTENT  # condition items are not stage-filtered, show across stages
-               if c.get("condition_tags") and
-               any(tag in active_conditions for tag in c["condition_tags"]) and
-               (not stage or c["stage"] == stage or True)]  # show for current stage if matching
-
-    # For condition cards, prefer same stage, but include cross-stage if nothing matches
-    for_you_same_stage = [c for c in for_you if not stage or c["stage"] == stage]
-    if for_you_same_stage:
-        for_you = for_you_same_stage
-
-    is_vegetarian = profile.get("is_vegetarian", False)
-    is_vegan = profile.get("is_vegan", False)
-    food_dislikes = [d.lower() for d in profile.get("food_dislikes", [])]
-
-    if is_vegan:
-        base = [c for c in base if "non-veg" not in c.get("taste_tags", [])]
-        for_you = [c for c in for_you if "non-veg" not in c.get("taste_tags", [])]
-    elif is_vegetarian:
-        base = [c for c in base if "non-veg" not in c.get("taste_tags", [])]
-        for_you = [c for c in for_you if "non-veg" not in c.get("taste_tags", [])]
-
+    for_you = [{
+        **card, "id": card["rule_id"], "type": "diet", "stage": stage,
+        "region": "general", "title": "Source information: " + card["rule_id"],
+        "body": " ".join([*card["eat"], *card["limit"], card["tip"] or "", card["note"] or ""]).strip(),
+        "source_citation": card["citation"],
+    } for card in result["guidance"]["cards"]]
     return {
-        "content": base,
+        "content": result["suggestions"],
         "for_you": for_you,
         "active_conditions": active_conditions,
         "profile": profile or None,
+        "guidance": result["guidance"],
     }
 
 # --- New models for daily check‑in, feedback, allergies, budget ---
 
 class DailyCheckIn(BaseModel):
     """Self‑reported daily symptom check‑in.
-    All fields are free‑text choices coming from the UI – never clinical inference.
+    All fields are explicit choices coming from the UI – never clinical inference.
     """
     woman_id: str
     date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    nausea: str = "none"          # "none" | "mild" | "severe"
-    appetite: str = "normal"      # "low" | "normal" | "high"
-    food_tolerance: str = "good"  # "good" | "poor"
+    nausea: Literal["none", "mild", "severe"] = "none"
+    appetite: Literal["low", "normal", "high"] = "normal"
+    food_tolerance: Literal["good", "poor"] = "good"
 
 
 class FoodFeedback(BaseModel):
-    """Mother marks a food as unsuitable and optionally receives an alternative.
+    """Mother records feedback or explicitly chooses a validated replacement.
     """
     woman_id: str
     date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     food_id: str
-    issue: str                     # "nauseous" | "expensive" | "unavailable" | "disliked"
+    issue: Literal["nauseous", "expensive", "unavailable", "disliked", "worked", "swapped"]
     alternative_id: str | None = None
+    stage: str | None = None  # selected library context, not inferred from records
+    region: str | None = None
 
 class AllergyProfile(BaseModel):
     woman_id: str
@@ -621,7 +604,7 @@ class AllergyProfile(BaseModel):
 
 class BudgetProfile(BaseModel):
     woman_id: str
-    budget: str = "medium"        # "low" | "medium" | "high"
+    budget: Literal["low", "medium", "high"] = "medium"
     available_ingredients: list[str] = []
 
 # Import SQLite persistence helpers – use top‑level import for uvicorn setup
@@ -667,7 +650,7 @@ def _build_match_explanation(profile: dict, checkin: dict, allergies: dict, budg
     if budget:
         parts.append(f"budget {budget.get('budget', 'medium')}")
     if allergies and allergies.get("allergens"):
-        parts.append("allergy safe")
+        parts.append("declared-allergen filter; check labels and preparation")
     if not parts:
         return "General suggestion"
     return "Matches: " + ", ".join(parts)
@@ -677,7 +660,9 @@ def _build_match_explanation(profile: dict, checkin: dict, allergies: dict, budg
 @router.post("/daily-checkin/{woman_id}")
 def post_daily_checkin(woman_id: str, checkin: DailyCheckIn, token: str):
     require_self(token, woman_id)
-    insert_daily_checkin(woman_id, checkin.model_dump())
+    if checkin.woman_id != woman_id:
+        raise HTTPException(status_code=422, detail="woman_id mismatch")
+    insert_daily_checkin(woman_id, checkin.model_dump(mode="json"))
     return {"status": "saved", "woman_id": woman_id}
 
 @router.get("/daily-checkin/{woman_id}")
@@ -688,6 +673,8 @@ def get_daily_checkin(woman_id: str, token: str):
 @router.put("/allergy-profile/{woman_id}")
 def set_allergy_profile(woman_id: str, profile: AllergyProfile, token: str):
     require_self(token, woman_id)
+    if profile.woman_id != woman_id:
+        raise HTTPException(status_code=422, detail="woman_id mismatch")
     upsert_allergy_profile(woman_id, profile.allergens)
     return {"status": "saved", "woman_id": woman_id}
 
@@ -699,6 +686,8 @@ def get_allergy_profile(woman_id: str, token: str):
 @router.put("/budget-profile/{woman_id}")
 def set_budget_profile(woman_id: str, profile: BudgetProfile, token: str):
     require_self(token, woman_id)
+    if profile.woman_id != woman_id:
+        raise HTTPException(status_code=422, detail="woman_id mismatch")
     upsert_budget_profile(woman_id, profile.budget, profile.available_ingredients)
     return {"status": "saved", "woman_id": woman_id}
 
@@ -710,8 +699,50 @@ def get_budget_profile(woman_id: str, token: str):
 @router.post("/food-feedback/{woman_id}")
 def post_food_feedback(woman_id: str, feedback: FoodFeedback, token: str):
     require_self(token, woman_id)
-    insert_food_feedback(woman_id, feedback.model_dump())
+    if feedback.woman_id != woman_id:
+        raise HTTPException(status_code=422, detail="woman_id mismatch")
+    if not any(item["id"] == feedback.food_id and item.get("type") == "diet" for item in _CONTENT):
+        raise HTTPException(status_code=422, detail="Unknown food option")
+    if feedback.issue != "swapped" and feedback.alternative_id is not None:
+        raise HTTPException(status_code=422, detail="Only swaps may include a replacement food")
+    if feedback.issue == "swapped":
+        if not feedback.alternative_id or feedback.alternative_id == feedback.food_id:
+            raise HTTPException(status_code=422, detail="A swap needs a different replacement food")
+        # Reuse the live library filters; never trust an option shown before a
+        # preference, budget, allergy or feedback change.
+        eligible = {
+            item["id"]: item
+            for item in get_food_suggestions(
+                woman_id, token, stage=feedback.stage, region=feedback.region,
+            )["suggestions"]
+        }
+        original = eligible.get(feedback.food_id)
+        replacement = eligible.get(feedback.alternative_id)
+        if original is None or replacement is None:
+            raise HTTPException(status_code=422, detail="Both swap foods must be current eligible options")
+        if not original.get("stage") or original["stage"] != replacement.get("stage"):
+            raise HTTPException(status_code=422, detail="Swap foods must have the same stage")
+        original_meals = {meal for meal in original.get("meal_types", []) if meal}
+        replacement_meals = {meal for meal in replacement.get("meal_types", []) if meal}
+        if not original_meals.intersection(replacement_meals):
+            raise HTTPException(status_code=422, detail="Swap foods must share a meal type")
+    insert_food_feedback(woman_id, feedback.model_dump(mode="json"))
     return {"status": "saved", "woman_id": woman_id}
+
+@router.get("/food-feedback/{woman_id}")
+def get_food_feedback(woman_id: str, token: str):
+    require_self(token, woman_id)
+    return {"feedback": db_get_food_feedback(woman_id)}
+
+
+@router.delete("/food-feedback/{woman_id}/{food_id}")
+def undo_food_feedback(woman_id: str, food_id: str, token: str):
+    require_self(token, woman_id)
+    from persistence_sqlite import undo_food_feedback as db_undo_food_feedback
+
+    db_undo_food_feedback(woman_id, food_id)
+    return {"status": "undone", "woman_id": woman_id, "food_id": food_id}
+
 
 @router.get("/food-suggestions/{woman_id}")
 def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None, region: Optional[str] = None):
@@ -724,6 +755,11 @@ def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None,
     profile = db_get_diet_profile(woman_id) or {}
     allergies = db_get_allergy_profile(woman_id) or {}
     budget = db_get_budget_profile(woman_id) or {}
+    from wellness.diet_guidance import build_saved_guidance
+    from wellness.food_options import STAGES
+    if stage and stage not in STAGES:
+        raise HTTPException(status_code=422, detail="Invalid diet stage")
+    guidance = build_saved_guidance(profile, get_daily_checkins(woman_id), stage)
 
     def norm(value):
         return str(value).strip().casefold()
@@ -779,6 +815,10 @@ def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None,
 
     for item in _CONTENT:
         if item.get("type") != "diet":
+            continue
+        # Educational draft paragraphs are not recipes or clinical guidance.
+        # Only structured meal options take part in ingredient/budget matching.
+        if not item.get("ingredients") or not item.get("meal_types"):
             continue
         if stage and item.get("stage") != stage:
             continue
@@ -836,6 +876,8 @@ def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None,
             continue
 
         feedback = latest_feedback.get(item.get("id"), "")
+        if feedback == "undone":
+            feedback = ""
         if feedback in rejected_issues:
             continue
 
@@ -852,7 +894,7 @@ def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None,
         if feedback == "worked":
             reasons.append("you previously marked this as worked for me")
 
-        result = dict(item)
+        result = _public_content(item)
         result["match_explanation"] = "; ".join(reasons)
         result["previous_feedback"] = feedback or None
         result["filter_notes"] = (
@@ -863,6 +905,7 @@ def get_food_suggestions(woman_id: str, token: str, stage: Optional[str] = None,
 
     return {
         "suggestions": suggestions,
+        "guidance": guidance,
         "excluded_for_incomplete_allergen_data": excluded_for_metadata,
         "message": (
             None if suggestions

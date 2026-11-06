@@ -156,6 +156,10 @@ export const getBudgetProfile = (womanId) =>
 
 export const postFoodFeedback = (womanId, payload) =>
   send("POST", `/wellness/food-feedback/${encodeURIComponent(womanId)}`, payload);
+export const getFoodFeedback = (womanId) =>
+  send("GET", `/wellness/food-feedback/${encodeURIComponent(womanId)}`);
+export const deleteFoodFeedback = (womanId, foodId) =>
+  send("DELETE", `/wellness/food-feedback/${encodeURIComponent(womanId)}/${encodeURIComponent(foodId)}`);
 
 export const getFoodSuggestions = (womanId, { stage, region } = {}) => {
   const q = new URLSearchParams();

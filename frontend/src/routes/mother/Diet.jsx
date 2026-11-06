@@ -1,6 +1,6 @@
 import DailyDietCheckIn from "./DailyDietCheckIn";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
 import PageTitle from "../../components/PageTitle";
 import { getSession } from "../../lib/session";
@@ -13,6 +13,8 @@ import {
   putBudgetProfile,
   getFoodSuggestions,
   postFoodFeedback,
+  getFoodFeedback,
+  deleteFoodFeedback,
 } from "../../lib/api";
 
 const STAGES = [
@@ -46,8 +48,39 @@ function splitList(value) {
   )];
 }
 
+function metadataText(value) {
+  if (value == null) return "Not provided";
+  if (Array.isArray(value)) return value.map(metadataText).join(", ");
+  if (typeof value === "object") return Object.entries(value)
+    .map(([key, entry]) => `${key.replaceAll("_", " ")}: ${metadataText(entry)}`).join("; ");
+  return String(value);
+}
+
+function Guidance({ guidance }) {
+  return (
+    <section aria-label="Personalized diet guidance" className="paper-card">
+      <h2>Personalized diet guidance</h2>
+      {guidance?.disclaimer && <p>{guidance.disclaimer}</p>}
+      {(guidance?.context_notes || []).map((note) => <p key={note}>{note}</p>)}
+      {guidance?.ruleset_version && <p>Ruleset: {guidance.ruleset_version}</p>}
+      {!(guidance?.cards || []).length && <p>No verified guidance is available for this context. Ask your clinician about your individual needs.</p>}
+      {(guidance?.cards || []).map((card) => (
+        <article key={card.rule_id}>
+          <h3>{card.layer} guidance</h3>
+          <p>Rule: {card.rule_id}</p>
+          {[["eat", "Eat"], ["limit", "Limit"], ["tip", "Tip"], ["note", "Note"], ["limit_notes", "Limitations"]].map(([field, label]) =>
+            card[field] && <div key={field}><strong>{label}: </strong><p>{metadataText(card[field])}</p></div>
+          )}
+          {card.citation && <p className="citation">{card.citation}</p>}
+        </article>
+      ))}
+    </section>
+  );
+}
+
 function ProfileForm({ profile, onSave, onCancel }) {
   const [form, setForm] = useState({
+    ...profile,
     weight_kg: profile?.weight_kg ?? "",
     nausea_level: profile?.nausea_level ?? "none",
     current_sickness: profile?.current_sickness ?? "none",
@@ -170,7 +203,7 @@ function ProfileForm({ profile, onSave, onCancel }) {
 export default function Diet() {
   const { linkedId } = getSession();
   const [stage, setStage] = useState("pregnancy_t1");
-  const [revision, setRevision] = useState(0);
+  const [revision, setRevision] = useState({ id: 0, feedback: true });
   const [profile, setProfile] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [allergens, setAllergens] = useState("");
@@ -183,6 +216,9 @@ export default function Diet() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [swapFor, setSwapFor] = useState(null);
+  const initialized = useRef(false);
+  const [savedPreferences, setSavedPreferences] = useState(null);
+  const [feedback, setFeedback] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -198,23 +234,32 @@ export default function Diet() {
 
     async function load() {
       try {
-        const [profileData, allergyData, budgetData, foodData] =
-          await Promise.all([
-            getDietProfile(linkedId),
-            getAllergyProfile(linkedId),
-            getBudgetProfile(linkedId),
-            getFoodSuggestions(linkedId, { stage }),
+        // Hydrate editable answers once; background refreshes never replace drafts.
+        if (!initialized.current) {
+          const [profileData, allergyData, budgetData] = await Promise.all([
+            getDietProfile(linkedId), getAllergyProfile(linkedId), getBudgetProfile(linkedId),
           ]);
-
+          if (!active) return;
+          const saved = {
+            allergens: (allergyData.allergens || []).join(", "),
+            budget: budgetData.budget || "medium",
+            ingredients: (budgetData.available_ingredients || []).join(", "),
+          };
+          setProfile(profileData.profile);
+          setAllergens(saved.allergens);
+          setBudget(saved.budget);
+          setIngredients(saved.ingredients);
+          setSavedPreferences(saved);
+          initialized.current = true;
+        }
+        const [foodData, feedbackData] = await Promise.all([
+          getFoodSuggestions(linkedId, { stage }),
+          revision.feedback ? getFoodFeedback(linkedId) : Promise.resolve(null),
+        ]);
         if (!active) return;
-        setProfile(profileData.profile);
-        setAllergens((allergyData.allergens || []).join(", "));
-        setBudget(budgetData.budget || "medium");
-        setIngredients(
-          (budgetData.available_ingredients || []).join(", ")
-        );
-        setDirty(false);
         setResult(foodData);
+        // Latest submitted event wins; undo is neutral and preserves history.
+        if (feedbackData) setFeedback([...new Map((feedbackData.feedback || []).map((entry) => [entry.food_id, entry])).values()].filter((entry) => entry.issue !== "undone"));
       } catch (err) {
         if (active) setError(err.message || "Could not load your diet data.");
       } finally {
@@ -235,11 +280,11 @@ export default function Diet() {
     try {
       await action();
       setNotice(message);
-      setRevision((value) => value + 1);
+      setRevision((value) => ({ id: value.id + 1, feedback: true }));
     } catch (err) {
       setError(
         (err.message || "Could not save.") +
-        " Reload saved data before continuing."
+        " Your unsaved answers have been kept. Retry the save or refresh suggestions."
       );
     } finally {
       setBusy(false);
@@ -252,6 +297,7 @@ export default function Diet() {
         ...formData,
         woman_id: linkedId,
       });
+      setProfile(formData);
       setShowProfile(false);
     }, "Diet profile saved.");
   }
@@ -268,7 +314,9 @@ export default function Diet() {
         budget,
         available_ingredients: splitList(ingredients),
       });
-    }, "Preferences saved. Suggestions refreshed.");
+      setSavedPreferences({ allergens, budget, ingredients });
+      setDirty(false);
+    }, "Preferences saved.");
   }
 
   async function recordFeedback(foodId, issue) {
@@ -281,7 +329,7 @@ export default function Diet() {
       }),
       issue === "worked"
         ? "Saved: this food worked for you."
-        : "Feedback saved. Remaining suggestions refreshed."
+        : "Feedback saved."
     );
   }
 
@@ -322,6 +370,7 @@ export default function Diet() {
         food_id: current.id,
         issue: "swapped",
         alternative_id: replacement.id,
+        stage,
         date: new Date().toISOString(),
       });
 
@@ -329,7 +378,7 @@ export default function Diet() {
     }, `Swap saved: ${replacementFood.title} replaces ${originalFood.title}.`);
   }
 
-  const disabled = loading || busy;
+  const disabled = loading || busy || !initialized.current;
 
   return (
     <AppShell role="mother">
@@ -368,18 +417,17 @@ export default function Diet() {
               <button
                 type="button"
                 className="button button-secondary"
-                disabled={disabled}
-                onClick={() => setRevision((value) => value + 1)}
+                disabled={loading || busy}
+                onClick={() => setRevision((value) => ({ id: value.id + 1, feedback: true }))}
               >
-                Reload saved data
+                Retry suggestions
               </button>
             </div>
           )}
 
           {loading && <p role="status">Loading your preferences...</p>}
 
-          {!loading && !error && (
-            <>
+          <>
               {showProfile ? (
                 <ProfileForm
                   profile={profile}
@@ -390,7 +438,7 @@ export default function Diet() {
                 <button
                   type="button"
                   className="button button-secondary"
-                  disabled={busy || dirty}
+                  disabled={disabled}
                   onClick={() => setShowProfile(true)}
                 >
                   {profile ? "Edit diet profile" : "Set up diet profile"}
@@ -400,7 +448,8 @@ export default function Diet() {
               <DailyDietCheckIn
                 key={linkedId}
                 womanId={linkedId}
-                disabled={disabled || showProfile || dirty}
+                disabled={disabled}
+                onSaved={() => setRevision((value) => ({ id: value.id + 1, feedback: false }))}
               />
 
               <form
@@ -411,7 +460,7 @@ export default function Diet() {
                 <h2>Allergies, budget and ingredients</h2>
 
                 <fieldset
-                  disabled={disabled || showProfile}
+                  disabled={disabled}
                   style={{ border: 0, padding: 0, margin: 0 }}
                 >
                   <label style={{ display: "block", marginBottom: 12 }}>
@@ -472,7 +521,12 @@ export default function Diet() {
                     <button
                       type="button"
                       className="button button-secondary"
-                      onClick={() => setRevision((value) => value + 1)}
+                      onClick={() => {
+                        setAllergens(savedPreferences.allergens);
+                        setBudget(savedPreferences.budget);
+                        setIngredients(savedPreferences.ingredients);
+                        setDirty(false);
+                      }}
                     >
                       Discard unsaved changes
                     </button>
@@ -486,14 +540,36 @@ export default function Diet() {
                 </p>
               )}
 
-              {!dirty && !showProfile && result && (
+              <section aria-label="Saved food feedback" className="paper-card">
+                <h2>Saved food feedback</h2>
+                <p>Undo clears the active rating for that food, including foods hidden from suggestions. History is kept. Other filters still apply.</p>
+                {!feedback.length && <p>No saved food feedback.</p>}
+                {feedback.map((entry) => (
+                  <div key={entry.food_id}>
+                    <p>{entry.food_title || entry.food_id}: {FEEDBACK.find(([value]) => value === entry.issue)?.[1] || entry.issue}
+                      {entry.alternative_id && ` → ${entry.alternative_id}`}</p>
+                    <button type="button" className="button button-secondary" disabled={disabled}
+                      aria-label={`Undo feedback: ${entry.food_title || entry.food_id}`}
+                      onClick={() => runAction(() => deleteFoodFeedback(linkedId, entry.food_id), "Feedback undone. History kept.")}>Undo feedback</button>
+                  </div>
+                ))}
+              </section>
+
+              {!loading && !error && result && (
+                <>
+                  {(dirty || showProfile) && <p>Guidance uses your saved answers, not unsaved edits.</p>}
+                  <Guidance guidance={result.guidance} />
+                </>
+              )}
+
+              {!dirty && !loading && !error && result && (
+                <>
                 <section aria-label="Food suggestions">
                   <h2>Food suggestions</h2>
                   <p>
-                    These are food ideas, not a prescribed diet.
-                    Current matching uses food preferences, affordability,
-                    ingredients, allergies and feedback. It does not yet
-                    personalize meals for GDM, weight or daily symptoms.
+                    These are illustrative meal ideas, not a prescribed diet and not GDM-approved.
+                    Preference matching is separate from the sourced guidance above.
+                    Discuss portions and individual needs with your clinician.
                   </p>
 
                   {result.excluded_for_incomplete_allergen_data > 0 && (
@@ -519,6 +595,11 @@ export default function Diet() {
                           <h3>{item.title}</h3>
                           {item.is_demo && <p>Illustrative meal option</p>}
                           <p>{item.body}</p>
+                          <p>Ingredients: {metadataText(item.ingredients)}</p>
+                          <p>Allergens: {item.allergens?.length === 0 ? "None listed; check ingredients and cross-contact." : metadataText(item.allergens)}</p>
+                          <p>Affordability category: {item.affordability || "Not provided"}</p>
+                          {item.affordability_estimate && <p>Affordability estimate: {metadataText(item.affordability_estimate)}</p>}
+                          {item.limit_notes && <p>{metadataText(item.limit_notes)}</p>}
 
                           {item.meal_types?.length > 0 && (
                             <p>Meal: {item.meal_types.join(", ")}</p>
@@ -621,9 +702,9 @@ export default function Diet() {
                     </ul>
                   )}
                 </section>
+                </>
               )}
-            </>
-          )}
+          </>
         </>
       )}
     </AppShell>

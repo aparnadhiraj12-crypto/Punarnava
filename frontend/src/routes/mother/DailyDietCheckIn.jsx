@@ -20,7 +20,7 @@ const QUESTIONS = [
   },
 ];
 
-export default function DailyDietCheckIn({ womanId, disabled = false }) {
+export default function DailyDietCheckIn({ womanId, disabled = false, onSaved }) {
   const [answers, setAnswers] = useState({
     nausea: "none",
     appetite: "normal",
@@ -71,6 +71,7 @@ export default function DailyDietCheckIn({ womanId, disabled = false }) {
       await postDailyCheckIn(womanId, payload);
       setLatest(payload);
       setNotice("Your check-in has been saved.");
+      onSaved?.();
     } catch (err) {
       setError(err.message || "Could not save your check-in.");
     } finally {
@@ -82,8 +83,8 @@ export default function DailyDietCheckIn({ womanId, disabled = false }) {
     <section className="paper-card" style={{ marginTop: 16, marginBottom: 16 }}>
       <h2>How are you feeling today?</h2>
       <p>
-        Record how eating feels today. These answers are saved in your
-        account; they do not yet change the meal suggestions.
+        Record how eating feels today. Saved answers help select relevant
+        sourced guidance; illustrative meals are not a clinical diet plan.
       </p>
 
       {loading && <p role="status">Loading your last check-in...</p>}

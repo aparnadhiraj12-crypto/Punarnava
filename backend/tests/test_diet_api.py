@@ -25,8 +25,7 @@ def test_plan_t1_nausea_anaemia():
     assert r.status_code == 200
     body = r.json()
     assert [c["rule_id"] for c in body["cards"]] == [
-        "DIET-SAFE-01", "DIET-SAFE-02", "DIET-STG-T1-01",
-        "DIET-COND-ANAEMIA-01", "DIET-SYM-NAUSEA-01",
+        "DIET-SAFE-01", "DIET-SYM-NAUSEA-01",
     ]
     assert body["ruleset_version"]
     assert "not a treatment plan" in body["disclaimer"]
@@ -36,14 +35,14 @@ def test_checkin_is_optional():
     r = client.post("/api/diet/plan", headers=_auth(), json={
         "profile": {"stage": "pregnant", "trimester": 1}})
     assert r.status_code == 200
-    assert [c["rule_id"] for c in r.json()["cards"]] == ["DIET-STG-T1-01"]
+    assert r.json()["cards"] == []  # draft stage rule withheld
 
 
 def test_t2_has_stage_card_and_disclaimer():
     r = client.post("/api/diet/plan", headers=_auth(), json={
         "profile": {"stage": "pregnant", "trimester": 2}})
     assert r.status_code == 200
-    assert [c["rule_id"] for c in r.json()["cards"]] == ["DIET-STG-T2-01"]
+    assert r.json()["cards"] == []  # draft stage rule withheld
     assert r.json()["disclaimer"]
 
 

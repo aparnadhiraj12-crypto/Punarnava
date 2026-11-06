@@ -10,6 +10,7 @@ One PWA for mothers and ASHA workers, plus a separate clinician portal and a no-
 | Public | `/privacy`                     | stub                 | — |
 | Mother | `/m/enrol`                     | stub                 | J1 |
 | Mother | `/m` (timeline)                 | **built**             | J2 |
+| Mother | `/m/diet`                      | **built**: saved filters, check-ins, source guidance, feedback, validated swaps and undo | nutrition |
 | Mother | `/m/item/:id`                  | stub                 | J2 |
 | Mother | `/m/family`                    | stub                 | — |
 | Mother | `/m/consent`                   | stub                 | — |
