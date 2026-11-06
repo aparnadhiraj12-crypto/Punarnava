@@ -46,7 +46,18 @@ export function getOfflineQueueCount() {
   return readQueue().length;
 }
 
-export async function syncOfflineQueue(sendRequest) {
+let activeSync = null;
+
+export function syncOfflineQueue(sendRequest) {
+  if (!activeSync) {
+    activeSync = Promise.resolve()
+      .then(() => drainOfflineQueue(sendRequest))
+      .finally(() => { activeSync = null; });
+  }
+  return activeSync;
+}
+
+async function drainOfflineQueue(sendRequest) {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return { synced: 0, remaining: readQueue().length };
   }
