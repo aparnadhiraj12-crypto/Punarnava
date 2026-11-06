@@ -66,7 +66,26 @@ async def lifespan(app):
         persistence.save_changed()
     if os.environ.get("PUNARNAVA_SEED_DEMO") == "1":
         seed_demo_data()
-    yield
+    if os.environ.get("PUNARNAVA_APPOINTMENT_SMS_ENABLED") != "1":
+        yield
+        return
+
+    import asyncio
+    from outreach.appointment_sms import reminder_loop
+
+    if not persistence.db_path():
+        raise RuntimeError("Appointment SMS needs persistent SQLite storage.")
+    key = os.environ.get("FAST2SMS_API_KEY", "").strip()
+    if not key or key == "your_fast2sms_api_key_here":
+        raise RuntimeError("Set FAST2SMS_API_KEY before enabling appointment SMS.")
+
+    stop = asyncio.Event()
+    task = asyncio.create_task(reminder_loop(stop))
+    try:
+        yield
+    finally:
+        stop.set()
+        await task
 
 
 app = FastAPI(

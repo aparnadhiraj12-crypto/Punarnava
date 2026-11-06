@@ -133,19 +133,6 @@ def signup(req: SignupRequest):
             ))
         linked_id = record["id"]
 
-        if spouse_clean:
-            from family.router import _GRANTS, DEFAULT_SCOPE
-            from datetime import datetime, timezone
-            grant_id = str(uuid.uuid4())
-            _GRANTS[grant_id] = {
-                "id": grant_id,
-                "woman_id": linked_id,
-                "grantee_name": "Spouse / Partner",
-                "phone": spouse_clean,
-                "scope": list(set(DEFAULT_SCOPE + ["mental_support"])),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "revoked": False,
-            }
     else:
         linked_id = _make_linked_id(req.role)
 

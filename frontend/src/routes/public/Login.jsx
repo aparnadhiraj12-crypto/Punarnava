@@ -5,7 +5,7 @@ import Brand from "../../components/Brand";
 import Button from "../../components/Button";
 import Field from "../../components/Field";
 import PixelArt from "../../components/PixelArt";
-import { login, getMe } from "../../lib/api";
+import { login, getMe, getWoman, updatePartnerPhone } from "../../lib/api";
 import { saveSession, homeFor, getHint, rememberContact, forgetHint } from "../../lib/session";
 import { friendlyAuthError } from "../../lib/errors";
 
@@ -17,6 +17,23 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [phoneSetup, setPhoneSetup] = useState(null);
+  const [spousePhone, setSpousePhone] = useState("");
+
+  async function savePhone(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await updatePartnerPhone(phoneSetup.id, spousePhone);
+      nav(phoneSetup.home, { replace: true });
+    } catch (err) {
+      setError(err.message || "Could not save the number. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -27,12 +44,45 @@ export default function Login() {
       try { name = (await getMe(res.token)).name ?? ""; } catch { /* name is optional */ }
       saveSession(res, name);
       rememberContact(id.trim());
-      nav(homeFor(res.role, res.linked_id));
+      const home = homeFor(res.role, res.linked_id);
+      if (res.role === "mother" && res.linked_id) {
+        let record;
+        try {
+          record = await getWoman(res.linked_id);
+        } catch {
+          // She can still reach Journey and update her number from Family later.
+        }
+        if (record && !record.spouse_phone?.trim()) {
+          setPhoneSetup({ id: res.linked_id, home });
+          return;
+        }
+      }
+      nav(home);
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (phoneSetup) {
+    return (
+      <main className="auth-page">
+        <section className="auth-panel">
+          <h1>Add your husband's or spouse's number</h1>
+          <p>Save a number for appointment reminders. You choose when to send each SMS.</p>
+          <form className="auth-form" onSubmit={savePhone}>
+            <Field label="Spouse's mobile number" type="tel" inputMode="tel"
+              placeholder="+91 98765 43210" value={spousePhone} required
+              onChange={(event) => setSpousePhone(event.target.value)} />
+            {error && <p role="alert" className="form-error">{error}</p>}
+            <Button type="submit" disabled={busy}>Save and continue</Button>
+            <Button type="button" tone="quiet" disabled={busy}
+              onClick={() => nav(phoneSetup.home, { replace: true })}>Skip for now</Button>
+          </form>
+        </section>
+      </main>
+    );
   }
 
   return (

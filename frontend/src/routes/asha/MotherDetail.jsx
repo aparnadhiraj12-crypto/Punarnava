@@ -9,6 +9,7 @@ import Button from "../../components/Button";
 import Icon from "../../components/Icon";
 import DoctorUpdates from "../../components/DoctorUpdates";
 import PatientCode from "../../components/PatientCode";
+import NextDoctorAppointment from "../../components/NextDoctorAppointment";
 import { eventLabel } from "../../lib/labels";
 import { Loading, Unreachable } from "../../components/Page";
 
@@ -102,6 +103,7 @@ export default function MotherDetail() {
       </section>
 
       <PatientCode code={woman.mother_code} />
+      <NextDoctorAppointment key={woman.id} woman={woman} />
 
       <section className="detail-grid">
         <article className="form-card">
