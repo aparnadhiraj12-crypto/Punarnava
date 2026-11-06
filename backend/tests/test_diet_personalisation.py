@@ -180,6 +180,6 @@ def test_diet_database_path_can_be_isolated_without_touching_default(tmp_path, m
     output = subprocess.check_output([
         sys.executable, "-c",
         "import persistence_sqlite as db; db.init_db(); print(db.DB_PATH)",
-    ], text=True).strip()
+    ], cwd=Path(__file__).resolve().parents[1], text=True).strip()
     assert output == str(path)
     assert path.exists()

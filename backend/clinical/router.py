@@ -119,3 +119,26 @@ def list_bp_readings(woman_id: str, token: str = None):
     require_record_access(token, woman_id)
     rows = _BP_READINGS.get(woman_id, [])
     return {"entries": sorted(rows, key=lambda e: (e["measured_on"], e["timestamp"]), reverse=True)}
+
+
+class NextAppointmentRequest(BaseModel):
+    # Send an explicit null to cancel the next appointment.
+    appointment_date: Optional[date]
+
+
+@router.put("/next-appointment/{woman_id}")
+def set_next_appointment(woman_id: str, req: NextAppointmentRequest, token: str):
+    from record.router import _WOMEN
+
+    session = require_role(token, {"doctor", "clinic"})
+    _require_known_woman(woman_id)
+
+    appointment = None
+    if req.appointment_date is not None:
+        appointment = {
+            "appointment_date": req.appointment_date.isoformat(),
+            "booked_by": _author(session, None),
+        }
+
+    _WOMEN[woman_id]["next_doctor_appointment"] = appointment
+    return {"next_doctor_appointment": appointment}

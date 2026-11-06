@@ -25,7 +25,55 @@ from auth.router import require_self
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from typing import Optional
+import os
+import re
 import uuid
+
+
+from pydantic import BaseModel
+
+class PartnerNotificationRequest(BaseModel):
+    milestone_rule_id: str
+    include_tip: bool = False
+    custom_message: Optional[str] = None
+    phone: Optional[str] = None
+
+
+# Fast2SMS integration – expects FAST2SMS_API_KEY in env
+FAST2SMS_API_URL = "https://www.fast2sms.com/dev/bulkV2"
+
+def _send_sms(phone: str, message: str) -> dict:
+    """Submit one SMS to Fast2SMS and report provider acceptance."""
+    import httpx
+
+    number = re.sub(r"[ ()-]", "", phone or "")
+    if number.startswith("+91"):
+        number = number[3:]
+    if not re.fullmatch(r"[6-9][0-9]{9}", number):
+        raise HTTPException(422, "Save a valid Indian mobile number for your husband.")
+
+    key = os.environ.get("FAST2SMS_API_KEY", "").strip()
+    if not key or key == "your_fast2sms_api_key_here":
+        raise HTTPException(503, "SMS service is not configured.")
+
+    try:
+        response = httpx.post(
+            FAST2SMS_API_URL,
+            headers={"Authorization": key},
+            json={"route": "q", "numbers": number, "message": message},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except httpx.TimeoutException:
+        raise HTTPException(504, "SMS status is unknown. Check before sending again.") from None
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(502, "Could not confirm SMS submission.") from None
+
+    if not isinstance(result, dict) or result.get("return") is not True:
+        raise HTTPException(502, "The SMS provider did not accept the reminder.")
+    return {"status": "accepted", "request_id": result.get("request_id")}
+
 
 from record.router import _WOMEN, _with_milestones
 from wellness.router import _CONTENT, _PROVIDERS
@@ -264,6 +312,15 @@ class PartnerPhoneRequest(BaseModel):
     spouse_phone: str
 
 
+class ShareReminderRequest(BaseModel):
+    woman_id: str
+    milestone_rule_id: str
+    message: Optional[str] = None
+    include_tip: bool = False
+
+
+
+
 @router.get("/partner-alerts/{woman_id}")
 def get_partner_alerts(woman_id: str, token: str):
     require_self(token, woman_id)
@@ -295,25 +352,82 @@ def get_partner_alerts(woman_id: str, token: str):
 def update_partner_phone(woman_id: str, req: PartnerPhoneRequest, token: str):
     require_self(token, woman_id)
     if woman_id not in _WOMEN:
-        raise HTTPException(404, "woman not found")
-    phone = req.spouse_phone.strip()
+        raise HTTPException(404, "Woman not found")
+    phone = re.sub(r"[ ().-]", "", req.spouse_phone.strip())
+    if re.fullmatch(r"[6-9][0-9]{9}", phone):
+        phone = "+91" + phone
+    if phone and not re.fullmatch(r"\+91[6-9][0-9]{9}", phone):
+        raise HTTPException(422, "Enter a 10-digit Indian mobile number or use +91.")
     _WOMEN[woman_id]["spouse_phone"] = phone
-    found = False
-    for g in _GRANTS.values():
-        if g["woman_id"] == woman_id and g.get("grantee_name") == "Spouse / Partner":
-            g["phone"] = phone
-            g["revoked"] = False
-            found = True
-            break
-    if not found and phone:
-        grant_id = str(uuid.uuid4())
-        _GRANTS[grant_id] = {
-            "id": grant_id,
-            "woman_id": woman_id,
-            "grantee_name": "Spouse / Partner",
-            "phone": phone,
-            "scope": DEFAULT_SCOPE,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "revoked": False,
-        }
     return {"status": "updated", "spouse_phone": phone}
+
+
+@router.post("/share-reminder")
+def share_reminder(req: ShareReminderRequest, token: str):
+    """Prepare a reminder draft for a milestone belonging to the signed-in mother."""
+    from urllib.parse import quote
+
+    require_self(token, req.woman_id)
+    if req.woman_id not in _WOMEN:
+        raise HTTPException(404, "Mother record not found")
+
+    record = _with_milestones(_WOMEN[req.woman_id])
+    milestone = next(
+        (item for item in record.get("milestones", [])
+         if item.get("rule_id") == req.milestone_rule_id),
+        None,
+    )
+    if milestone is None:
+        raise HTTPException(404, "Milestone not found")
+
+    title = milestone["type"].replace("_", " ").title()
+    due = milestone.get("due_date")
+    if req.message is None:
+        message = f"My upcoming appointment: {title}."
+        if due:
+            message += f" Due on {due}."
+    else:
+        message = req.message.strip()
+        if not message:
+            raise HTTPException(422, "Enter a reminder message")
+
+    if req.include_tip:
+        guidance = PARTNER_STAGE_GUIDANCE.get(_stage_for(record)) or {}
+        tips = guidance.get("mental_support_actions") or []
+        if tips:
+            message += "\n\n" + tips[0]
+
+    phone = re.sub(r"[\s().-]", "", record.get("spouse_phone") or "")
+    actions = {"whatsapp": None, "sms": None, "copy": message}
+    if re.fullmatch(r"\+[1-9][0-9]{1,14}", phone):
+        body = quote(message, safe="")
+        actions["whatsapp"] = f"https://wa.me/{phone[1:]}?text={body}"
+        actions["sms"] = f"sms:{phone}?body={body}"
+
+    return {"preview": {
+        "milestone_rule_id": req.milestone_rule_id,
+        "milestone_title": title,
+        "due_date": due,
+        "message": message,
+        "actions": actions,
+    }}
+
+
+class HusbandSmsRequest(ShareReminderRequest):
+    model_config = {"extra": "forbid"}
+    confirmed: bool
+
+
+@router.post("/send-husband-sms")
+def send_husband_sms(req: HusbandSmsRequest, token: str):
+    """Send the confirmed reminder to the mother's saved husband number."""
+    # The preview checks the mother's token and ownership of this milestone.
+    preview = share_reminder(req, token)["preview"]
+    if not req.confirmed:
+        raise HTTPException(422, "Confirm before sending the SMS.")
+
+    phone = _WOMEN[req.woman_id].get("spouse_phone")
+    if not phone:
+        raise HTTPException(422, "Save your husband's phone number first.")
+
+    return _send_sms(phone, preview["message"])

@@ -1659,3 +1659,146 @@ def test_doctor_can_use_the_mother_code_as_her_id(monkeypatch):
     assert client.get(f"/api/record/women/{code}").status_code == 401
     assert client.get("/api/record/women/PN-ZZZZZZ", params={"token": doc}).status_code == 404
     assert client.get(f"/api/record/lookup/{code}", params={"token": doc}).json()["id"] == wid
+
+
+def test_partner_reminder_drafts_use_edited_text_and_require_owner(monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+
+    monkeypatch.setenv("PUNARNAVA_OPEN_ACCESS", "0")
+    owner, woman_id = _mother()
+    other, _ = _mother()
+    auth = {"token": owner}
+    phone = "+919876543210"
+
+    saved = client.put(
+        f"/api/family/partner-phone/{woman_id}",
+        params=auth,
+        json={"spouse_phone": phone},
+    )
+    assert saved.status_code == 200, saved.text
+
+    record = client.get(f"/api/record/women/{woman_id}", params=auth)
+    assert record.status_code == 200, record.text
+    milestone = record.json()["milestones"][0]
+
+    grants_url = f"/api/family/grants/{woman_id}"
+    before = client.get(grants_url, params=auth)
+    assert before.status_code == 200, before.text
+
+    message = "Can you come with me? Please bring the card & reports."
+    payload = {
+        "woman_id": woman_id,
+        "milestone_rule_id": milestone["rule_id"],
+        "message": message,
+        "include_tip": False,
+    }
+    url = "/api/family/share-reminder"
+    response = client.post(url, params=auth, json=payload)
+    assert response.status_code == 200, response.text
+    preview = response.json()["preview"]
+    assert preview["due_date"] == milestone["due_date"]
+    assert preview["actions"]["copy"] == message
+
+    whatsapp = urlsplit(preview["actions"]["whatsapp"])
+    sms = urlsplit(preview["actions"]["sms"])
+    assert (whatsapp.scheme, whatsapp.netloc, whatsapp.path) == (
+        "https", "wa.me", "/" + phone[1:]
+    )
+    assert parse_qs(whatsapp.query)["text"] == [message]
+    assert (sms.scheme, sms.path) == ("sms", phone)
+    assert parse_qs(sms.query)["body"] == [message]
+
+    denied = client.post(url, params={"token": other}, json=payload)
+    assert denied.status_code == 403, denied.text
+
+    after = client.get(grants_url, params=auth)
+    assert after.status_code == 200, after.text
+    assert after.json() == before.json()
+
+
+def test_husband_sms_uses_saved_number_after_confirmation(monkeypatch):
+    from family import router as family
+
+    calls = []
+    def fake_send(phone, message):
+        calls.append((phone, message))
+        return {"status": "accepted"}
+
+    monkeypatch.setattr(family, "_send_sms", fake_send)
+    owner, wid = _mother()
+    other, _ = _mother()
+    auth = {"token": owner}
+    grants_url = f"/api/family/grants/{wid}"
+    before = client.get(grants_url, params=auth)
+    assert before.status_code == 200, before.text
+
+    saved = client.put(f"/api/family/partner-phone/{wid}", params=auth,
+                       json={"spouse_phone": "9876543210"})
+    assert saved.status_code == 200, saved.text
+    assert client.get(grants_url, params=auth).json() == before.json()
+
+    record = client.get(f"/api/record/women/{wid}", params=auth)
+    assert record.status_code == 200, record.text
+    assert record.json()["spouse_phone"] == "+919876543210"
+    rule = record.json()["milestones"][0]["rule_id"]
+    body = {"woman_id": wid, "milestone_rule_id": rule,
+            "message": "Please come with me.", "confirmed": True}
+    url = "/api/family/send-husband-sms"
+
+    assert client.post(url, params={"token": other}, json=body).status_code == 403
+    assert client.post(url, params=auth, json={**body, "confirmed": False}).status_code == 422
+    assert client.post(url, params=auth, json={**body, "phone": "9999999999"}).status_code == 422
+    assert calls == []
+
+    accepted = client.post(url, params=auth, json=body)
+    assert accepted.status_code == 200, accepted.text
+    assert calls == [("+919876543210", "Please come with me.")]
+
+
+def test_doctor_booking_visible_to_mother_and_assigned_asha(monkeypatch):
+    from datetime import date, timedelta
+
+    _strict(monkeypatch)
+    doctor, _ = _signup("doctor")
+    mother, woman_id = _mother()
+    asha, asha_id = _signup("asha")
+    other_asha, _ = _signup("asha")
+
+    record_url = f"/api/record/women/{woman_id}"
+    booking_url = f"/api/clinical/next-appointment/{woman_id}"
+
+    assigned = client.post(
+        f"{record_url}/assign",
+        params={"token": doctor},
+        json={"asha_id": asha_id},
+    )
+    assert assigned.status_code == 200, assigned.text
+
+    first = (date.today() + timedelta(days=3)).isoformat()
+    revised = (date.today() + timedelta(days=5)).isoformat()
+
+    for token in (mother, asha):
+        denied = client.put(
+            booking_url, params={"token": token}, json={"appointment_date": first}
+        )
+        assert denied.status_code == 403, denied.text
+
+    hidden = client.get(record_url, params={"token": other_asha})
+    assert hidden.status_code == 403, hidden.text
+
+    for booked_date in (first, revised, None):
+        saved = client.put(
+            booking_url,
+            params={"token": doctor},
+            json={"appointment_date": booked_date},
+        )
+        assert saved.status_code == 200, saved.text
+
+        for token in (mother, asha):
+            record = client.get(record_url, params={"token": token})
+            assert record.status_code == 200, record.text
+            booking = record.json()["next_doctor_appointment"]
+            if booked_date is None:
+                assert booking is None
+            else:
+                assert booking["appointment_date"] == booked_date

@@ -352,6 +352,7 @@ export default function App() {
                 {history?.bp?.length ? <ul className="medication-list bp-list">{history.bp.map((item) => <li key={item.id}><div><strong>{item.systolic}/{item.diastolic} mmHg</strong><span>{[item.pulse != null ? `Pulse ${item.pulse}` : null, item.note].filter(Boolean).join(" · ") || "No pulse or note recorded"}</span></div><small>{formatDate(item.measured_on || item.timestamp)}</small></li>)}</ul> : <p className="muted compact-empty">No blood pressure readings recorded.</p>}
               </section>
 
+              <DoctorAppointmentForm key={patient.id} patient={patient} token={session.token} />
               <ClinicalForm patient={patient} token={session.token} onSaved={refreshHistory} onUnauthorized={signOut} />
 
               <section className="record-section history-section">
@@ -478,6 +479,60 @@ function ClinicalForm({ patient, token, onSaved, onUnauthorized }) {
         {success && <p className="success-message" role="status">{success}</p>}
         <button className="primary-button entry-submit" type="submit" disabled={busy}>{busy ? "Saving…" : tab === "prescription" ? "Save prescription" : "Save reading"}</button>
       </form>
+    </section>
+  );
+}
+
+
+function DoctorAppointmentForm({ patient, token }) {
+  const initial = patient.next_doctor_appointment?.appointment_date || "";
+  const [saved, setSaved] = useState(initial);
+  const [draft, setDraft] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function save(date) {
+    setBusy(true);
+    setStatus("");
+    try {
+      const result = await request(
+        `/clinical/next-appointment/${encodeURIComponent(patient.id)}`,
+        { method: "PUT", token, body: { appointment_date: date || null } }
+      );
+      const booked = result.next_doctor_appointment?.appointment_date || "";
+      setSaved(booked);
+      setDraft(booked);
+      setStatus(booked ? "Appointment saved." : "Appointment cancelled.");
+    } catch (error) {
+      setStatus(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="aside-section">
+      <h2>Next doctor appointment</h2>
+      <p>{saved ? `Booked for ${formatDate(saved)}` : "No appointment booked."}</p>
+      <form onSubmit={(event) => { event.preventDefault(); save(draft); }}>
+        <label>
+          Appointment date
+          <input type="date" required value={draft} disabled={busy}
+            onChange={(event) => setDraft(event.target.value)} />
+        </label>
+        <button type="submit" disabled={busy || !draft || draft === saved}>
+          {saved ? "Save new date" : "Book appointment"}
+        </button>
+        {saved && (
+          <button type="button" disabled={busy}
+            onClick={() => {
+              if (window.confirm("Cancel this patient's booked appointment?")) save("");
+            }}>
+            Cancel appointment
+          </button>
+        )}
+      </form>
+      <p role="status">{status}</p>
     </section>
   );
 }
