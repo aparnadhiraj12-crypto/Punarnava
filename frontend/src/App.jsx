@@ -1,3 +1,4 @@
+import AndroidBackNavigation from "./components/AndroidBackNavigation";
 // App.jsx - route table. Add new routes here (see FRONTEND_GUIDE.md rule #5:
 // also add the route to docs/SITEMAP.md so it's tracked in one place).
 // BrowserRouter lives here because main.jsx has no router.
@@ -40,6 +41,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <AndroidBackNavigation />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/signup" element={<Signup />} />
