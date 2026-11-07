@@ -1,5 +1,5 @@
 import { createPortal, flushSync } from "react-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
 const SESSION_KEY = "punarnava_clinician_session";
@@ -493,15 +493,41 @@ function DoctorAppointmentForm({ patient, token }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
+  const initialClinic = patient.next_doctor_appointment?.clinic_id || "";
+  const [savedClinic, setSavedClinic] = useState(initialClinic);
+  const [clinicId, setClinicId] = useState(initialClinic);
+  const [clinics, setClinics] = useState(null);
+  const [clinicError, setClinicError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setClinics(null);
+    setClinicError("");
+    async function loadClinics() {
+      try {
+        const result = await request("/clinical/clinics", { token });
+        if (active) setClinics(result.clinics);
+      } catch (error) {
+        if (active) setClinicError(errorMessage(error));
+      }
+    }
+    loadClinics();
+    return () => { active = false; };
+  }, [token, attempt]);
+
   async function save(date) {
     setBusy(true);
     setStatus("");
     try {
       const result = await request(
         `/clinical/next-appointment/${encodeURIComponent(patient.id)}`,
-        { method: "PUT", token, body: { appointment_date: date || null } }
+        { method: "PUT", token, body: { appointment_date: date || null, clinic_id: date && clinics?.length && clinicId ? clinicId : null } }
       );
       const booked = result.next_doctor_appointment?.appointment_date || "";
+      const bookedClinic = result.next_doctor_appointment?.clinic_id || "";
+      setSavedClinic(bookedClinic);
+      setClinicId(bookedClinic);
       setSaved(booked);
       setDraft(booked);
       setStatus(booked ? "Appointment saved." : "Appointment cancelled.");
@@ -522,8 +548,33 @@ function DoctorAppointmentForm({ patient, token }) {
           <input type="date" required value={draft} disabled={busy}
             onChange={(event) => setDraft(event.target.value)} />
         </label>
-        <button type="submit" disabled={busy || !draft || draft === saved}>
-          {saved ? "Save new date" : "Book appointment"}
+        {clinicError ? (
+          <p role="alert">
+            Could not load clinics. {clinicError}{" "}
+            <button type="button" onClick={() => setAttempt(value => value + 1)}>Retry</button>
+          </p>
+        ) : clinics === null ? (
+          <p role="status">Loading clinics...</p>
+        ) : clinics.length > 0 ? (
+          <label>
+            Appointment clinic
+            <select required value={clinicId} disabled={busy}
+              onChange={event => setClinicId(event.target.value)}>
+              <option value="" disabled>Select a clinic</option>
+              {clinics.map(clinic => (
+                <option key={clinic.id} value={clinic.id}>{clinic.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p>No clinics configured. Date-only booking is available.</p>
+        )}
+        <button type="submit" disabled={
+          busy || !draft || clinics === null ||
+          (clinics.length > 0 && !clinics.some(clinic => clinic.id === clinicId)) ||
+          (draft === saved && clinicId === savedClinic)
+        }>
+          {saved ? "Save appointment changes" : "Book appointment"}
         </button>
         {saved && (
           <button type="button" disabled={busy}

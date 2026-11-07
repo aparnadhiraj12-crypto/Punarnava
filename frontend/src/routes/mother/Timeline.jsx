@@ -71,7 +71,7 @@ export default function Timeline() {
 
       <PatientCode code={woman.mother_code} />
       <SchemeTracker key={woman.id} womanId={woman.id} />
-      <NextDoctorAppointment key={woman.id} woman={woman} allowCalendar />
+      <NextDoctorAppointment allowClinicReport key={woman.id} woman={woman} allowCalendar />
 
       {woman.clinical_events?.length > 0 && (
         <ul className="tag-row">
