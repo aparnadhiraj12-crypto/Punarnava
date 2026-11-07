@@ -1,3 +1,4 @@
+import SchemeTracker from "../../components/SchemeTracker";
 // /m and /m/:id - one mother's journey, loaded from the URL (guide section 5).
 // Restyled as the redesign's "Journey" screen: a hero for the next milestone,
 // a progress bar, then the full timeline.
@@ -69,6 +70,7 @@ export default function Timeline() {
       )}
 
       <PatientCode code={woman.mother_code} />
+      <SchemeTracker key={woman.id} womanId={woman.id} />
       <NextDoctorAppointment key={woman.id} woman={woman} allowCalendar />
 
       {woman.clinical_events?.length > 0 && (

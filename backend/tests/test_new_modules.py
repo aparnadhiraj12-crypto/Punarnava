@@ -1802,3 +1802,44 @@ def test_doctor_booking_visible_to_mother_and_assigned_asha(monkeypatch):
                 assert booking is None
             else:
                 assert booking["appointment_date"] == booked_date
+
+
+def test_scheme_status_is_shared_only_with_assigned_asha(monkeypatch):
+    _strict(monkeypatch)
+    mother, wid = _mother()
+    other_mother, _ = _mother()
+    asha, asha_id = _signup("asha")
+    other_asha, _ = _signup("asha")
+    doctor, _ = _signup("doctor")
+
+    def auth(token):
+        return {"Authorization": "Bearer " + token}
+
+    assignment = client.post(
+        f"/api/record/women/{wid}/assign",
+        headers=auth(doctor), json={"asha_id": asha_id},
+    )
+    assert assignment.status_code == 200, assignment.text
+
+    url = f"/api/schemes/{wid}"
+    initial = client.get(url, headers=auth(mother))
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["schemes"] == {"pmmvy": "to_check", "jsy": "to_check"}
+
+    saved = client.put(url + "/pmmvy", headers=auth(mother), json={"status": "applied"})
+    assert saved.status_code == 200, saved.text
+    assert client.get(url, headers=auth(asha)).json()["schemes"]["pmmvy"] == "applied"
+
+    saved = client.put(url + "/pmmvy", headers=auth(asha), json={"status": "received"})
+    assert saved.status_code == 200, saved.text
+    assert client.get(url, headers=auth(mother)).json()["schemes"] == {
+        "pmmvy": "received", "jsy": "to_check"
+    }
+
+    for token in (other_asha, other_mother, doctor):
+        assert client.get(url, headers=auth(token)).status_code == 403
+        denied = client.put(url + "/jsy", headers=auth(token), json={"status": "received"})
+        assert denied.status_code == 403
+
+    invalid = client.put(url + "/jsy", headers=auth(mother), json={"status": "verified"})
+    assert invalid.status_code == 422
