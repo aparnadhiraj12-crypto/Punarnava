@@ -19,6 +19,7 @@ from journal.router import router as journal_router
 from safety.router import router as safety_router
 from selfreport.router import router as selfreport_router
 from clinical.router import router as clinical_router
+from schemes.router import router as schemes_router, SCHEME_PROGRESS
 from meditation.router import router as meditation_router
 from family.router import router as family_router
 from report.router import router as report_router
@@ -50,6 +51,7 @@ persistence.register("record.completions", _COMPLETIONS)
 persistence.register("record.interactions", _INTERACTIONS)
 persistence.register("record.visits", _VISITS)
 persistence.register("clinical.prescribed", _PRESCRIBED)
+persistence.register("schemes.progress", SCHEME_PROGRESS)
 persistence.register("clinical.bp", _BP_READINGS)
 persistence.register("wellness.taste_prefs", _TASTE_PREFS)
 persistence.register("wellness.saved_plans", _SAVED_PLANS)
@@ -163,6 +165,7 @@ app.include_router(journal_router, prefix="/api/journal", tags=["journal"])
 app.include_router(safety_router, prefix="/api/safety", tags=["safety"])
 app.include_router(selfreport_router, prefix="/api/record", tags=["self-report"])
 app.include_router(clinical_router, prefix="/api/clinical", tags=["clinical"])
+app.include_router(schemes_router, prefix="/api/schemes", tags=["schemes"])
 app.include_router(meditation_router, prefix="/api/meditation", tags=["meditation"])
 app.include_router(family_router, prefix="/api/family", tags=["family"])
 app.include_router(report_router, prefix="/api/report", tags=["report"])

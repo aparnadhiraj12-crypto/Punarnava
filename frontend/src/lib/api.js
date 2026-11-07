@@ -175,3 +175,9 @@ export const getFoodSuggestions = (womanId, { stage, region } = {}) => {
     `/wellness/food-suggestions/${encodeURIComponent(womanId)}${query ? `?${query}` : ""}`
   );
 };
+
+export const getSchemeProgress = (womanId) =>
+  send("GET", `/schemes/${encodeURIComponent(womanId)}`);
+
+export const saveSchemeProgress = (womanId, scheme, status) =>
+  send("PUT", `/schemes/${encodeURIComponent(womanId)}/${encodeURIComponent(scheme)}`, { status });

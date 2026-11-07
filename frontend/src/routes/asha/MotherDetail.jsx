@@ -1,3 +1,4 @@
+import SchemeTracker from "../../components/SchemeTracker";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getWoman, getInteractions } from "../../lib/api";
@@ -103,6 +104,7 @@ export default function MotherDetail() {
       </section>
 
       <PatientCode code={woman.mother_code} />
+      <SchemeTracker key={woman.id} womanId={woman.id} asha />
       <NextDoctorAppointment key={woman.id} woman={woman} />
 
       <section className="detail-grid">
