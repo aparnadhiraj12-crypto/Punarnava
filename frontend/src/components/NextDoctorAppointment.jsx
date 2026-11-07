@@ -56,7 +56,11 @@ function ClinicClosureNotice({ womanId, clinicName }) {
   return (
     <>
       {status?.report ? (
-        <p role="status"><strong>Unconfirmed clinic closure. </strong>{status.report.message}</p>
+        <p role="status"><strong>{
+          status.report.status === "confirmed_open" ? "Clinic open. " :
+          status.report.status === "confirmed_closed" ? "Closure confirmed. " :
+          "Unconfirmed clinic closure. "
+        }</strong>{status.report.message}</p>
       ) : status?.can_report && !error ? (
         <button type="button" disabled={sending} onClick={report}>
           {sending ? "Reporting..." : "Report clinic closed"}
