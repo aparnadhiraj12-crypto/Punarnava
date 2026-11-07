@@ -6,6 +6,7 @@ import Icon from "./Icon";
 import Brand from "./Brand";
 import { getSession, clearSession } from "../lib/session";
 import OfflineStatus from "./OfflineStatus";
+import { useAshaLanguage, setAshaLanguage } from "../lib/ashaLanguage";
 
 const motherNav = (linkedId) => [
   {
@@ -47,10 +48,13 @@ const ashaNav = [
 
 export default function AppShell({ role, children }) {
   const { pathname } = useLocation();
+  const language = useAshaLanguage();
+  const hindi = role === "asha" && language === "hi";
   const [menuOpen, setMenuOpen] = useState(false);
   const { name } = getSession();
   const nav = role === "asha" ? ashaNav : motherNav(getSession().linkedId);
-  const roleLabel = role === "asha" ? "ASHA space" : "Mother space";
+  const roleLabel = role === "asha" ? (hindi ? "आशा कार्यकर्ता" : "ASHA space") : "Mother space";
+  const navLabel = (label) => hindi ? ({ Queue: "कार्य सूची", Mothers: "माताएँ" }[label] || label) : label;
 
   return (
     <div className="app-shell">
@@ -61,7 +65,7 @@ export default function AppShell({ role, children }) {
           {nav.map((item) => (
             <Link key={item.to} to={item.to} className={item.match(pathname) ? "active" : ""}>
               <Icon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{navLabel(item.label)}</span>
             </Link>
           ))}
         </nav>
@@ -84,12 +88,23 @@ export default function AppShell({ role, children }) {
             </div>
           )}
         </header>
-        <main className="content">{role === "asha" && <OfflineStatus />}{children}</main>
+        <main className="content">{role === "asha" && (
+          <>
+            <label className="field" style={{ maxWidth: "12rem", marginBottom: "1rem" }}>
+              <span>{hindi ? "भाषा" : "Language"}</span>
+              <select value={language} onChange={(event) => setAshaLanguage(event.target.value)}>
+                <option value="en" lang="en">English</option>
+                <option value="hi" lang="hi">हिंदी</option>
+              </select>
+            </label>
+            <OfflineStatus />
+          </>
+        )}{children}</main>
         <nav className="bottom-nav">
           {nav.map((item) => (
             <Link key={item.to} to={item.to} className={item.match(pathname) ? "active" : ""}>
               <Icon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{navLabel(item.label)}</span>
             </Link>
           ))}
         </nav>
