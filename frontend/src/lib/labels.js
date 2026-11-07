@@ -17,7 +17,17 @@ const EVENTS = {
 };
 
 export const milestoneLabel = (type) => MILESTONES[type] ?? humanize(type);
-export const eventLabel = (type) => EVENTS[type] ?? humanize(type);
+const EVENTS_HI = {
+  gestational_diabetes: "गर्भावधि मधुमेह",
+  hypertensive_in_pregnancy: "गर्भावस्था में उच्च रक्तचाप",
+  significant_blood_loss: "अधिक रक्तस्राव",
+  on_metformin: "मेटफॉर्मिन ले रही हैं",
+};
+
+export function eventLabel(type, language = "en") {
+  if (language === "hi" && EVENTS_HI[type]) return EVENTS_HI[type];
+  return EVENTS[type] ?? humanize(type);
+}
 export const humanizeId = humanize;
 
 // state is exactly: due | done | pending | missed | not_applicable

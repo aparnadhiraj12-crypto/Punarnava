@@ -2,8 +2,16 @@ import { useState } from "react";
 import Button from "./Button";
 import Icon from "./Icon";
 
-export default function PatientCode({ code, compact = false }) {
+export default function PatientCode({ code, compact = false, hindi = false }) {
   const [status, setStatus] = useState("");
+
+  const title = hindi ? "मरीज़ का विशिष्ट कोड" : "Unique patient code";
+  const feedback = {
+    Copied: hindi ? "कोड कॉपी हो गया।" : "Copied",
+    "Copy unavailable. Please note the code.": hindi
+      ? "कोड कॉपी नहीं हो सका। कृपया इसे लिख लें।"
+      : "Copy unavailable. Please note the code.",
+  };
 
   async function copyCode() {
     let success = false;
@@ -43,15 +51,16 @@ export default function PatientCode({ code, compact = false }) {
   if (!code) return null;
 
   return (
-    <section className={`patient-code-card${compact ? " compact" : ""}`} aria-label="Unique patient code">
+    <section className={`patient-code-card${compact ? " compact" : ""}`} aria-label={title}>
       <div className="patient-code-copy">
-        <div className="eyebrow">Unique patient code</div>
+        <div className="eyebrow">{title}</div>
         <strong>{code}</strong>
-        {!compact && <p>Share this code with her clinician to find her care history.</p>}
-        {status && <span className="patient-code-status" role="status" aria-live="polite">{status}</span>}
+        {!compact && <p>{hindi ? "देखभाल का रिकॉर्ड खोलने के लिए यह कोड डॉक्टर को दें।"
+          : "Share this code with her clinician to find her care history."}</p>}
+        {status && <span className="patient-code-status" role="status" aria-live="polite">{feedback[status]}</span>}
       </div>
       <Button type="button" tone="secondary" onClick={copyCode}>
-        <Icon name="copy" size={17} /> Copy code
+        <Icon name="copy" size={17} /> {hindi ? "कोड कॉपी करें" : "Copy code"}
       </Button>
     </section>
   );

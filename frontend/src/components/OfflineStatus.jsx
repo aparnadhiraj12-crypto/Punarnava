@@ -2,26 +2,31 @@
 import { sendQueuedRequest } from "../lib/api";
 import { getOfflineQueue, syncOfflineQueue } from "../lib/offlineStore";
 
-function itemLabel(item) {
-  if (item.path === "/outreach/respond") return "Visit log";
-  if (item.path === "/ingestion/manual") return "Mother enrolment";
-  return "Saved update";
+import { useAshaLanguage } from "../lib/ashaLanguage";
+
+function itemLabel(item, hi) {
+  if (item.path === "/outreach/respond") return hi ? "मुलाकात का विवरण" : "Visit log";
+  if (item.path === "/ingestion/manual") return hi ? "माँ का पंजीकरण" : "Mother enrolment";
+  return hi ? "सहेजी गई जानकारी" : "Saved update";
 }
 
-function savedTime(value) {
+function savedTime(value, hi) {
   const date = new Date(value);
-  if (!value || Number.isNaN(date.getTime())) return "Time unavailable";
-  return date.toLocaleString(undefined, {
+  if (!value || Number.isNaN(date.getTime())) return hi ? "समय उपलब्ध नहीं है" : "Time unavailable";
+  return date.toLocaleString(hi ? "hi-IN" : "en-IN", {
     day: "numeric", month: "short", hour: "numeric", minute: "2-digit",
   });
 }
 
 export default function OfflineStatus() {
   const dialog = useRef(null);
+  const hi = useAshaLanguage() === "hi";
+  const onlineLabel = hi ? "ऑनलाइन" : "Online";
+  const offlineLabel = hi ? "ऑफ़लाइन" : "Offline";
   const [online, setOnline] = useState(() => navigator.onLine);
   const [items, setItems] = useState(getOfflineQueue);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [syncResult, setSyncResult] = useState(null);
 
   useEffect(() => {
     function refresh() {
@@ -43,29 +48,41 @@ export default function OfflineStatus() {
   async function syncNow() {
     if (busy || !navigator.onLine) return;
     setBusy(true);
-    setMessage("");
+    setSyncResult(null);
     try {
       const { synced, remaining } = await syncOfflineQueue(sendQueuedRequest);
-      setMessage(remaining
-        ? `${synced} synced. ${remaining} still waiting.`
-        : "Everything is synced.");
+      setSyncResult({ synced, remaining });
     } catch {
-      setMessage("Could not finish syncing. Check your connection and try again.");
+      setSyncResult({ failed: true });
     } finally {
       setItems(getOfflineQueue());
       setBusy(false);
     }
   }
 
+  let message = "";
+  if (syncResult?.failed) {
+    message = hi ? "सिंक पूरा नहीं हुआ। इंटरनेट कनेक्शन जाँचें और फिर कोशिश करें।"
+      : "Could not finish syncing. Check your connection and try again.";
+  } else if (syncResult) {
+    const { synced, remaining } = syncResult;
+    if (remaining) {
+      message = hi ? `${synced} अपडेट सिंक हुए। ${remaining} अभी लंबित हैं।`
+        : `${synced} synced. ${remaining} still waiting.`;
+    } else {
+      message = hi ? "सभी अपडेट सिंक हो गए हैं।" : "Everything is synced.";
+    }
+  }
+
   return (
-    <section aria-label="Offline sync" style={{ marginBottom: "1rem" }}>
+    <section lang={hi ? "hi" : "en"} aria-label={hi ? "ऑफ़लाइन सिंक" : "Offline sync"} style={{ marginBottom: "1rem" }}>
       <button type="button" aria-haspopup="dialog" className="btn"
         onClick={() => {
-          setMessage("");
+          setSyncResult(null);
           setItems(getOfflineQueue());
           dialog.current.showModal();
         }}>
-        {online ? "Online" : "Offline"} · {items.length} pending
+        {online ? onlineLabel : offlineLabel} · {items.length} {hi ? "लंबित" : "pending"}
       </button>
 
       <dialog ref={dialog} aria-labelledby="asha-sync-title" style={{
@@ -75,26 +92,28 @@ export default function OfflineStatus() {
         border: 0, background: "var(--paper, #fffaf1)", color: "inherit",
       }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 id="asha-sync-title">Pending updates</h2>
-          <button type="button" onClick={() => dialog.current.close()}>Close</button>
+          <h2 id="asha-sync-title">{hi ? "लंबित अपडेट" : "Pending updates"}</h2>
+          <button type="button" onClick={() => dialog.current.close()}>{hi ? "बंद करें" : "Close"}</button>
         </header>
 
-        <p>{online ? "Online" : "Offline · Updates will sync when you reconnect."}</p>
+        <p>{online ? onlineLabel : (hi
+          ? "ऑफ़लाइन · इंटरनेट मिलने पर अपडेट सिंक हो जाएँगे।"
+          : "Offline · Updates will sync when you reconnect.")}</p>
 
         {items.length ? (
           <ul>
             {items.map((item) => (
               <li key={item.id} style={{ marginBottom: "0.75rem" }}>
-                <strong>{itemLabel(item)}</strong><br />
-                <small>Saved {savedTime(item.created_at)}</small>
+                <strong>{itemLabel(item, hi)}</strong><br />
+                <small>{hi ? "सहेजने का समय:" : "Saved"} {savedTime(item.created_at, hi)}</small>
               </li>
             ))}
           </ul>
-        ) : <p>No updates waiting to sync.</p>}
+        ) : <p>{hi ? "सिंक करने के लिए कोई अपडेट लंबित नहीं है।" : "No updates waiting to sync."}</p>}
 
         <button type="button" disabled={!online || !items.length || busy}
           onClick={syncNow}>
-          {busy ? "Syncing…" : "Sync now"}
+          {busy ? (hi ? "सिंक हो रहा है…" : "Syncing…") : (hi ? "अभी सिंक करें" : "Sync now")}
         </button>
         <p role="status">{message}</p>
       </dialog>
