@@ -237,3 +237,78 @@ def get_clinic_status(woman_id: str, token: str):
     day, clinic_id = visit
     report = _CLINIC_CLOSURE_REPORTS.get(day, {}).get(clinic_id)
     return {"can_report": True, "report": report}
+
+
+class StaffClinicStatusUpdate(BaseModel):
+    day: date
+    status: str
+
+
+def _staff_clinics(token):
+    import json
+    import os
+    from fastapi import HTTPException
+
+    session = require_role(token, {"doctor", "clinic"})
+    user_id = (session or {}).get("user_id")
+    if not user_id or session.get("role") not in {"doctor", "clinic"}:
+        raise HTTPException(403, "A signed-in clinic staff account is required.")
+
+    try:
+        assignments = json.loads(os.environ.get("PUNARNAVA_STAFF_CLINICS_JSON", "{}"))
+        if not isinstance(assignments, dict):
+            raise ValueError
+        assigned = assignments.get(user_id, [])
+        if not isinstance(assigned, list) or any(not isinstance(i, str) for i in assigned):
+            raise ValueError
+    except (TypeError, ValueError):
+        raise HTTPException(503, "Clinic staff assignments are misconfigured.")
+
+    return {key: name for key, name in clinic_directory().items() if key in assigned}
+
+
+def _clinic_local_now():
+    from datetime import datetime, timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=5, minutes=30)))
+
+
+@router.get("/staff/clinic-status")
+def get_staff_clinic_status(token: str):
+    clinics = _staff_clinics(token)
+    day = _clinic_local_now().date().isoformat()
+    reports = _CLINIC_CLOSURE_REPORTS.get(day, {})
+    return {
+        "day": day,
+        "clinics": [
+            {"id": key, "name": name, "report": reports.get(key)}
+            for key, name in clinics.items()
+        ],
+    }
+
+
+@router.put("/staff/clinic-status/{clinic_id}")
+def update_staff_clinic_status(clinic_id: str, req: StaffClinicStatusUpdate, token: str):
+    from fastapi import HTTPException
+
+    if clinic_id not in _staff_clinics(token):
+        raise HTTPException(403, "This clinic is outside your staff assignment.")
+
+    now = _clinic_local_now()
+    if req.day != now.date():
+        raise HTTPException(409, "The day has changed. Refresh the clinic status.")
+
+    messages = {
+        "confirmed_closed": "Clinic staff confirmed the clinic is closed today. Contact the clinic about your appointment.",
+        "confirmed_open": "Clinic staff confirmed the clinic is open today.",
+    }
+    if req.status not in messages:
+        raise HTTPException(422, "Choose confirmed_closed or confirmed_open.")
+
+    day = req.day.isoformat()
+    report = {
+        "status": req.status,
+        "reported_at": now.isoformat(timespec="minutes"),
+        "message": messages[req.status],
+    }
+    _CLINIC_CLOSURE_REPORTS.setdefault(day, {})[clinic_id] = report
+    return {"report": report}

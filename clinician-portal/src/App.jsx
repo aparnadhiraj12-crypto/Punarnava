@@ -355,6 +355,7 @@ export default function App() {
               </section>
 
               <DoctorAppointmentForm key={patient.id} patient={patient} token={session.token} />
+              <StaffClinicStatus key={session.token} token={session.token} />
               <ClinicalForm patient={patient} token={session.token} onSaved={refreshHistory} onUnauthorized={signOut} />
 
               <section className="record-section history-section">
@@ -485,6 +486,68 @@ function ClinicalForm({ patient, token, onSaved, onUnauthorized }) {
   );
 }
 
+
+function StaffClinicStatus({ token }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setData(null);
+    setError("");
+    request("/clinical/staff/clinic-status", { token })
+      .then(result => { if (active) setData(result); })
+      .catch(err => { if (active) setError(errorMessage(err)); });
+    return () => { active = false; };
+  }, [token, reload]);
+
+  async function update(clinic, status) {
+    const action = status === "confirmed_closed" ? "closed" : "open";
+    if (!window.confirm(`Mark ${clinic.name} as ${action} today? Mothers booked there today will see this update.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await request(`/clinical/staff/clinic-status/${encodeURIComponent(clinic.id)}`, {
+        method: "PUT", token, body: { day: data.day, status }
+      });
+      setReload(value => value + 1);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const labels = {
+    reported_closed: "Visitor reported a closure. Awaiting confirmation.",
+    confirmed_closed: "Clinic staff confirmed closure.",
+    confirmed_open: "Clinic staff confirmed the clinic is open."
+  };
+
+  return (
+    <section className="aside-section" aria-label="Clinic operating status">
+      <h2>Clinic operating status</h2>
+      {error && <p role="alert">{error}</p>}
+      {!data && !error && <p role="status">Loading clinic status...</p>}
+      {data?.clinics.length === 0 && <p>No clinic assigned to this staff account.</p>}
+      {data?.clinics.map(clinic => (
+        <div key={clinic.id}>
+          <h3>{clinic.name}</h3>
+          <p role="status">{labels[clinic.report?.status] || "No status reported today."}</p>
+          <button type="button" disabled={busy || clinic.report?.status === "confirmed_closed"}
+            onClick={() => update(clinic, "confirmed_closed")}>Confirm closed</button>
+          <button type="button" disabled={busy || clinic.report?.status === "confirmed_open"}
+            onClick={() => update(clinic, "confirmed_open")}>Mark open</button>
+        </div>
+      ))}
+      <button type="button" disabled={busy} onClick={() => setReload(value => value + 1)}>
+        Refresh clinic status
+      </button>
+    </section>
+  );
+}
 
 function DoctorAppointmentForm({ patient, token }) {
   const initial = patient.next_doctor_appointment?.appointment_date || "";
