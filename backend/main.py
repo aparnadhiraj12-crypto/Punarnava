@@ -29,7 +29,7 @@ from auth.router import _USERS, _TOKENS, _BY_CONTACT, cleanup_expired_tokens, se
 from journal.router import _ENTRIES as _JOURNAL_ENTRIES, _SHARED_WITH_DOCTOR
 from selfreport.router import _ENTRIES as _SELFREPORT_ENTRIES
 from record.router import _WOMEN, _COMPLETIONS, _INTERACTIONS, _VISITS, ensure_mother_codes
-from clinical.router import _PRESCRIBED, _BP_READINGS
+from clinical.router import _PRESCRIBED, _BP_READINGS, _CLINIC_CLOSURE_REPORTS
 from wellness.router import _TASTE_PREFS, _SAVED_PLANS
 from family.router import _GRANTS
 from report.router import _HANDOFF
@@ -53,6 +53,7 @@ persistence.register("record.visits", _VISITS)
 persistence.register("clinical.prescribed", _PRESCRIBED)
 persistence.register("schemes.progress", SCHEME_PROGRESS)
 persistence.register("clinical.bp", _BP_READINGS)
+persistence.register("clinical.closure_reports", _CLINIC_CLOSURE_REPORTS)
 persistence.register("wellness.taste_prefs", _TASTE_PREFS)
 persistence.register("wellness.saved_plans", _SAVED_PLANS)
 persistence.register("family.grants", _GRANTS)

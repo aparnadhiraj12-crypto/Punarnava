@@ -121,7 +121,38 @@ def list_bp_readings(woman_id: str, token: str = None):
     return {"entries": sorted(rows, key=lambda e: (e["measured_on"], e["timestamp"]), reverse=True)}
 
 
+def clinic_directory():
+    import json
+    import os
+
+    configured = os.getenv("PUNARNAVA_CLINICS_JSON")
+    if configured is None:
+        if os.getenv("PUNARNAVA_SEED_DEMO") == "1":
+            return {"demo-clinic-a": "Demo Clinic A", "demo-clinic-b": "Demo Clinic B"}
+        return {}
+
+    clinics = json.loads(configured)
+    if not isinstance(clinics, dict) or any(
+        not isinstance(value, str) or not value.strip()
+        for pair in clinics.items() for value in pair
+    ):
+        raise ValueError("PUNARNAVA_CLINICS_JSON must map clinic IDs to clinic names")
+    return clinics
+
+
+@router.get("/clinics")
+def list_clinics(token: str):
+    require_role(token, {"doctor", "clinic"})
+    return {
+        "clinics": [
+            {"id": clinic_id, "name": name}
+            for clinic_id, name in clinic_directory().items()
+        ]
+    }
+
+
 class NextAppointmentRequest(BaseModel):
+    clinic_id: Optional[str] = None
     # Send an explicit null to cancel the next appointment.
     appointment_date: Optional[date]
 
@@ -140,5 +171,69 @@ def set_next_appointment(woman_id: str, req: NextAppointmentRequest, token: str)
             "booked_by": _author(session, None),
         }
 
+    if appointment is not None:
+        if req.clinic_id is not None:
+            from fastapi import HTTPException
+
+            clinics = clinic_directory()
+            if req.clinic_id not in clinics:
+                raise HTTPException(status_code=422, detail="Unknown clinic ID")
+            appointment["clinic_id"] = req.clinic_id
+            appointment["clinic_name"] = clinics[req.clinic_id]
+        else:
+            previous = _WOMEN[woman_id].get("next_doctor_appointment") or {}
+            for field in ("clinic_id", "clinic_name"):
+                if field in previous:
+                    appointment[field] = previous[field]
+
     _WOMEN[woman_id]["next_doctor_appointment"] = appointment
     return {"next_doctor_appointment": appointment}
+# One visitor report per clinic and local appointment day.
+_CLINIC_CLOSURE_REPORTS = {}
+
+
+def _current_clinic_visit(woman_id, token):
+    from datetime import datetime, timedelta, timezone
+    from auth.router import require_self
+    from record.router import _WOMEN
+
+    require_role(token, {"mother"})
+    require_self(token, woman_id)
+    _require_known_woman(woman_id)
+
+    now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    today = now.date().isoformat()
+    booking = _WOMEN[woman_id].get("next_doctor_appointment") or {}
+    clinic_id = booking.get("clinic_id")
+    if not clinic_id or booking.get("appointment_date") != today:
+        return None, now
+    return (today, clinic_id), now
+
+
+@router.post("/clinic-status/{woman_id}/report-closed")
+def report_clinic_closed(woman_id: str, token: str):
+    from fastapi import HTTPException
+
+    visit, now = _current_clinic_visit(woman_id, token)
+    if visit is None:
+        raise HTTPException(409, "A clinic booking for today is required.")
+
+    day, clinic_id = visit
+    reports = _CLINIC_CLOSURE_REPORTS.setdefault(day, {})
+    report = reports.setdefault(clinic_id, {
+        "status": "reported_closed",
+        "reported_at": now.isoformat(timespec="minutes"),
+        "message": "A visitor reported that this clinic was closed today. Call the clinic to confirm before travelling.",
+    })
+    return {"report": report}
+
+
+@router.get("/clinic-status/{woman_id}")
+def get_clinic_status(woman_id: str, token: str):
+    visit, _ = _current_clinic_visit(woman_id, token)
+    if visit is None:
+        return {"can_report": False, "report": None}
+
+    day, clinic_id = visit
+    report = _CLINIC_CLOSURE_REPORTS.get(day, {}).get(clinic_id)
+    return {"can_report": True, "report": report}
